@@ -29,4 +29,15 @@ GITHUB_TOKEN=<token> python -m indexer.build_index --out site
 python -m unittest
 ```
 
+### Full run on your own machine
+
+A personal token and no time limit find more addons than the daily job. Start from the published index, run, and publish the result; the next daily job continues from it.
+
+```sh
+git clone https://github.com/Gulliby-development/runeloader-index && cd runeloader-index
+git worktree add site origin/gh-pages
+GITHUB_TOKEN=$(gh auth token) python -m indexer.build_index --out site --search-minutes 240
+cd site && git add index.json state.json icons && git commit -m "Full index run" && git push origin HEAD:gh-pages
+```
+
 Python 3.10+, standard library only. The token needs no scopes. See [AGENTS.md](AGENTS.md) for how the index works.

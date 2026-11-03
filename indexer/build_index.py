@@ -228,11 +228,25 @@ REPO_FIELDS = """
 """ % ((RELEASE_FIELDS,) * 2)
 
 
-def fetch_repos(gh, candidates, batch=30):
+def select(found, listed, max_new):
+    """Candidates to check: every addon already listed, then new ones by priority up to max_new."""
+    for repo in listed.values():
+        key = repo["repo"].lower()
+        if key not in found:   # listed but lost from the candidates: check it anyway
+            found[key] = Candidate(repo["repo"])
+            found[key].reasons.update(repo.get("found_by") or ["listed"])
+    rank = lambda c: (min(PRIORITY.get(r, 9) for r in c.reasons), c.repo.lower())
+    old = sorted((c for k, c in found.items() if k in listed), key=rank)
+    new = sorted((c for k, c in found.items() if k not in listed), key=rank)
+    return old + new[:max(0, max_new)]
+
+
+def fetch_repos(gh, candidates, batch=30, failed=None):
     """Repo metadata and recent releases for many repos, 30 per GraphQL query.
 
     One query costs a few rate-limit points, so a few thousand repos fit in the
-    1000 points per hour the Actions token gets.
+    1000 points per hour the Actions token gets. Repos of a batch that failed go
+    into `failed`: they were not answered, which is not the same as gone.
     """
     out = {}
     for i in range(0, len(candidates), batch):
@@ -245,6 +259,8 @@ def fetch_repos(gh, candidates, batch=30):
             data = gh.graphql("query {" + " ".join(parts) + "}")
         except Exception as ex:
             log("graphql batch failed: %s" % ex)
+            if failed is not None:
+                failed.update(c.repo.lower() for c in chunk)
             continue
         for j, c in enumerate(chunk):
             node = (data or {}).get("r%d" % j)
@@ -402,7 +418,8 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="site")
     p.add_argument("--seeds", default="seeds.txt")
-    p.add_argument("--max-checks", type=int, default=int(os.environ.get("MAX_CHECKS", "2500")))
+    p.add_argument("--max-checks", type=int, default=int(os.environ.get("MAX_CHECKS", "5000")),
+                   help="limit for new candidates; addons already listed are always checked")
     p.add_argument("--search-minutes", type=int, default=int(os.environ.get("SEARCH_MINUTES", "45")),
                    help="time for searches; candidates from earlier runs are checked either way")
     p.add_argument("--min-ratio", type=float, default=0.7, help="refuse to publish if the index shrinks below this share")
@@ -425,22 +442,28 @@ def main(argv=None):
     gh.search_deadline = time.time() + args.search_minutes * 60
     found = discover(gh, seeds, state.get("candidates"))
     state["candidates"] = remember(found)
-    ordered = sorted(found.values(), key=lambda c: (min(PRIORITY.get(r, 9) for r in c.reasons), c.repo.lower()))
-    ordered = ordered[:args.max_checks]
-    nodes = fetch_repos(gh, ordered)
+    listed = {a["repo"].lower(): a for a in old.get("addons") or [] if a.get("repo")}
+    ordered = select(found, listed, args.max_checks)
+    failed = set()
+    nodes = fetch_repos(gh, ordered, failed=failed)
     log("repos fetched: %d of %d, api calls %d" % (len(nodes), len(ordered), gh.calls))
     cache = state.setdefault("release_json", {})
-    addons, errors, seen = [], 0, set()
+    addons, errors, kept, seen = [], 0, 0, set()
     for c in ordered:
-        node = nodes.get(c.repo.lower())
-        if not node:
-            continue
-        try:
-            e = check(gh, c, node, cache)
-        except Exception as ex:  # one bad repo must not stop the run
-            errors += 1
-            log("error %s: %s" % (c.repo, ex))
-            continue
+        key = c.repo.lower()
+        node = nodes.get(key)
+        e = None
+        if node:
+            try:
+                e = check(gh, c, node, cache)
+            except Exception as ex:  # one bad repo must not stop the run
+                errors += 1
+                log("error %s: %s" % (c.repo, ex))
+                e = listed.get(key)
+                kept += e is not None
+        elif key in failed and key in listed:
+            e = listed[key]   # not answered this time: keep yesterday's entry
+            kept += 1
         if e and e["repo"].lower() not in seen:   # renamed repos can show up twice
             seen.add(e["repo"].lower())
             addons.append(e)
@@ -470,7 +493,8 @@ def main(argv=None):
     live = {a["url"].rsplit("/", 1)[0] for a in addons if a.get("url")}
     state["release_json"] = {u: v for u, v in cache.items() if u.rsplit("/", 1)[0] in live}
     write(state_path, state)
-    log("done: %d addons, %d candidates, %d errors, %d api calls" % (len(addons), len(found), errors, gh.calls))
+    log("done: %d addons (%d kept from the last run), %d candidates, %d errors, %d api calls"
+        % (len(addons), kept, len(found), errors, gh.calls))
     return 0
 
 

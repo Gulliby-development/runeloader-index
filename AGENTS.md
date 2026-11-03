@@ -17,7 +17,9 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
   3. **Describe.** Title, notes, author, folder and other-site ids from the Forever TOC; description and screenshots from the README; category; changelog from the release notes (`indexer/details.py`).
 - `state.json` keeps every candidate found so far and the pick from each `release.json` by URL. A day with throttled searches still checks every candidate found before, and an unchanged release is not downloaded again.
 - Searches get a time budget (`SEARCH_MINUTES`, 45 by default). A failed or throttled search skips that query; it never stops the run.
+- Each run adds to the published index and never starts over. Every addon already listed is checked first and is outside the `MAX_CHECKS` limit, which applies to new candidates only. A listed addon whose GraphQL batch failed, or whose check raised an error, keeps its entry from the last run. It leaves the index only when GitHub answers and its latest releases have no Forever build, or the repository is gone.
 - The job refuses to publish when the index shrinks below 70% of the previous one.
+- A long full run can be made on a local machine and published to `gh-pages` by hand (see `README.md`); the daily job then continues from it.
 
 ## index.json
 

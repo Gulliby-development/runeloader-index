@@ -25,6 +25,31 @@ CATEGORIES = (
 )
 
 
+# Tag for addons made for a gamepad or a handheld. Only clear signals count:
+# a topic, or a word in the TOC title/notes/category, the repo name or its summary.
+GAMEPAD_TOPICS = {"gamepad", "controller", "controller-support", "consoleport", "steam-deck", "steamdeck",
+                  "handheld", "joystick", "crossbar", "gamepad-ui"}
+_GAMEPAD_WORDS = re.compile(r"(?<![a-z])(gamepad|game pad|controller|consoleport|console port|steam ?deck|handheld|"
+                            r"crossbar|joystick|dualsense|xbox|back paddles?)(?![a-z])", re.IGNORECASE)
+# "controller" that is not about a game controller.
+_NOT_GAMEPAD = re.compile(r"(midi|loot|addon|raid|camera|mouse ?look) controller", re.IGNORECASE)
+
+
+def is_gamepad(topics, toc_fields=None, *texts):
+    """True when an addon is clearly made for playing with a gamepad or on a handheld."""
+    if GAMEPAD_TOPICS & {str(t).lower() for t in topics or []}:
+        return True
+    f = toc_fields or {}
+    parts = [f.get("x-category", ""), f.get("title", ""), f.get("notes", "")] + list(texts)
+    text = _NOT_GAMEPAD.sub(" ", " ".join(p or "" for p in parts))
+    return bool(_GAMEPAD_WORDS.search(text))
+
+
+def mentions_gamepad(text):
+    """A softer signal (the README): logged for review, never tagged on its own."""
+    return bool(_GAMEPAD_WORDS.search(_NOT_GAMEPAD.sub(" ", text or "")))
+
+
 def plain_text(md, limit=4000):
     """Markdown or simple HTML to readable plain text: keeps headings, lists and paragraphs."""
     if not md:

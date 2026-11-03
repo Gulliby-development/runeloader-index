@@ -10,9 +10,19 @@ A daily list of World of Warcraft addons on GitHub that have a **WoW Forever** b
 2. **Checked.** Its latest GitHub release has a Forever build: a `release.json` entry with the `forever` or `camelot` flavor, or a zip named for Forever.
 3. **Listed.** With name, author, summary, version, download link, logo from the TOC `IconTexture`, description and screenshots from the README, category, changelog and the last five Forever releases.
 
+## Gamepad addons
+
+Addons made for playing with a gamepad or on a handheld (Steam Deck, Android handhelds) get `"tags": ["gamepad"]`, and Runeloader shows them under **Gamepad**. An addon gets the tag when [`gamepad.txt`](gamepad.txt) lists it, or when its topics (`gamepad`, `controller`, `steam-deck`, `handheld`, ...), its TOC title, notes or `X-Category`, its name or its summary say so. A README that only mentions a gamepad is logged for review. `-owner/repo` in `gamepad.txt` keeps the tag off an addon the rule gets wrong.
+
+To retag the published index after you change `gamepad.txt`, without a full run:
+
+```sh
+python -m indexer.build_index --out site --tags-only
+```
+
 ## Addon authors
 
-Your addon shows up on its own if you publish GitHub releases with [BigWigs packager](https://github.com/BigWigsMods/packager) and ship a `YourAddon_Forever.toc`. Otherwise add `owner/repo` to `seeds.txt` in a pull request.
+Your addon shows up on its own if you publish GitHub releases with [BigWigs packager](https://github.com/BigWigsMods/packager) and ship a `YourAddon_Forever.toc`. Otherwise add `owner/repo` to `seeds.txt` in a pull request. For a gamepad addon, add it to `gamepad.txt` instead.
 
 ## Entry example
 

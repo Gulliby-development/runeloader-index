@@ -18,12 +18,13 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
 - `state.json` keeps every candidate found so far and the pick from each `release.json` by URL. A day with throttled searches still checks every candidate found before, and an unchanged release is not downloaded again.
 - Searches get a time budget (`SEARCH_MINUTES`, 45 by default). A failed or throttled search skips that query; it never stops the run.
 - Each run adds to the published index and never starts over. Every addon already listed is checked first and is outside the `MAX_CHECKS` limit, which applies to new candidates only. A listed addon whose GraphQL batch failed, or whose check raised an error, keeps its entry from the last run. It leaves the index only when GitHub answers and its latest releases have no Forever build, or the repository is gone.
+- Tags (`tags` in `index.json`) mark addons across categories; a category stays one value. A new tag gets its rule in `indexer/details.py` (clear signals only: topics, TOC, name, summary), a hand-made list file like `gamepad.txt`, a test in `tests/test_details.py`, and the matching key in the app.
 - The job refuses to publish when the index shrinks below 70% of the previous one.
 - A long full run can be made on a local machine and published to `gh-pages` by hand (see `README.md`); the daily job then continues from it.
 
 ## index.json
 
-Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`).
+Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `tags` (a list; today only `gamepad`), `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`).
 
 The app tolerates missing keys. Add a key freely, but never rename or remove one without a new `schema` number and the matching change in the app.
 
@@ -64,6 +65,7 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 - `indexer/images.py`: BLP2 and TGA decoding, scaling, PNG output (standard library only).
 - `indexer/icons.py`: addon folders and the logo from the release zip.
 - `seeds.txt`: repositories always checked.
+- `gamepad.txt`: gamepad and handheld addons. Each one is always checked and tagged `gamepad`; `-owner/repo` never is.
 - `tests/`: unit tests, including a full `check()` against a fake GitHub.
 - `.github/workflows/index.yml`: the daily job. `.github/workflows/test.yml`: tests on pull requests.
 

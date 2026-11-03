@@ -30,7 +30,8 @@ SIZE_SLICES = ("size:<600", "size:600..1200", "size:1201..2500", "size:>2500")
 TOC_QUERIES = ("filename:_Forever.toc", "filename:_Camelot.toc", '"## Interface: 160" extension:toc')
 PACKAGER_QUERIES = ("BigWigsMods/packager path:.github/workflows",)
 REPO_QUERIES = ("topic:wow-addon", "topic:world-of-warcraft-addon", "topic:wow-addons",
-                "topic:worldofwarcraft-addon", "topic:wow-forever", "wow forever addon in:name,description,readme")
+                "topic:worldofwarcraft-addon", "topic:wow-forever", "wow forever addon in:name,description,readme",
+                "wow forever gamepad in:name,description", "wow forever controller in:name,description")
 
 
 def log(*a):
@@ -301,8 +302,11 @@ def forever_build(gh, rel, c, node, cache):
             "url": asset.get("downloadUrl")}
 
 
-def check(gh, c, node, cache):
-    """Return an index entry for a candidate, or None when it has no Forever build."""
+def check(gh, c, node, cache, gamepad=None):
+    """Return an index entry for a candidate, or None when it has no Forever build.
+
+    gamepad is the hand-made list from gamepad.txt: {repo_lower: True (tag) or False (never tag)}.
+    """
     if node.get("isArchived") or (node.get("isFork") and "seed" not in c.reasons):
         return None
     rel = node.get("latestRelease")
@@ -345,11 +349,28 @@ def check(gh, c, node, cache):
         entry["releases"] = releases
 
     fields = toc_meta(gh, node, c, entry)
-    readme_meta(gh, node, entry)
+    readme = readme_meta(gh, node, entry)
     cat = details.category(fields.get("x-category", ""), entry["topics"], entry["name"] + " " + entry["summary"])
     if cat:
         entry["category"] = cat
+    tag(entry, gamepad, fields, readme)
     return entry
+
+
+def tag(entry, gamepad, fields=None, readme=""):
+    """Set entry["tags"]; the hand-made list wins over the automatic rule."""
+    tags = []
+    listed = (gamepad or {}).get(entry["repo"].lower())
+    if listed is None:
+        listed = details.is_gamepad(entry.get("topics"), fields, entry.get("name", ""), entry.get("summary", ""))
+        if not listed and details.mentions_gamepad(readme):
+            log("gamepad? %s mentions a gamepad in its README; add it to gamepad.txt if it is for one" % entry["repo"])
+    if listed:
+        tags.append("gamepad")
+    if tags:
+        entry["tags"] = tags
+    else:
+        entry.pop("tags", None)
 
 
 def readme_meta(gh, node, entry):
@@ -365,7 +386,8 @@ def readme_meta(gh, node, entry):
             entry["description"] = desc
         if shots:
             entry["screenshots"] = shots
-        return
+        return text
+    return ""
 
 
 def toc_meta(gh, node, c, entry):
@@ -418,11 +440,14 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="site")
     p.add_argument("--seeds", default="seeds.txt")
+    p.add_argument("--gamepad", default="gamepad.txt")
     p.add_argument("--max-checks", type=int, default=int(os.environ.get("MAX_CHECKS", "5000")),
                    help="limit for new candidates; addons already listed are always checked")
     p.add_argument("--search-minutes", type=int, default=int(os.environ.get("SEARCH_MINUTES", "45")),
                    help="time for searches; candidates from earlier runs are checked either way")
     p.add_argument("--min-ratio", type=float, default=0.7, help="refuse to publish if the index shrinks below this share")
+    p.add_argument("--tags-only", action="store_true",
+                   help="only update the tags of the addons in the existing index.json, without GitHub calls")
     args = p.parse_args(argv)
 
     os.makedirs(args.out, exist_ok=True)
@@ -431,6 +456,15 @@ def main(argv=None):
     state = load(state_path, {})
     old = load(index_path, {"addons": []})
 
+    if args.tags_only:
+        gamepad = load_gamepad(args.gamepad)
+        for e in old.get("addons") or []:
+            tag(e, gamepad)
+        write(index_path, old)
+        log("tags: %d of %d addons tagged gamepad"
+            % (sum("gamepad" in e.get("tags", []) for e in old.get("addons") or []), len(old.get("addons") or [])))
+        return 0
+
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         log("GITHUB_TOKEN is not set; code search and GraphQL need it")
@@ -438,6 +472,8 @@ def main(argv=None):
     gh = GitHub(token)
     seeds = [l.split("#")[0].strip() for l in open(args.seeds, encoding="utf-8")] if os.path.exists(args.seeds) else []
     seeds = [s for s in seeds if "/" in s]
+    gamepad = load_gamepad(args.gamepad)
+    seeds += [r for r, tag in gamepad.items() if tag]
 
     gh.search_deadline = time.time() + args.search_minutes * 60
     found = discover(gh, seeds, state.get("candidates"))
@@ -455,7 +491,7 @@ def main(argv=None):
         e = None
         if node:
             try:
-                e = check(gh, c, node, cache)
+                e = check(gh, c, node, cache, gamepad)
             except Exception as ex:  # one bad repo must not stop the run
                 errors += 1
                 log("error %s: %s" % (c.repo, ex))
@@ -496,6 +532,18 @@ def main(argv=None):
     log("done: %d addons (%d kept from the last run), %d candidates, %d errors, %d api calls"
         % (len(addons), kept, len(found), errors, gh.calls))
     return 0
+
+
+def load_gamepad(path):
+    """gamepad.txt: "owner/repo" tags a repo as made for a gamepad, "-owner/repo" never tags it."""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding="utf-8"):
+        line = line.split("#")[0].strip()
+        if "/" in line:
+            out[line.lstrip("-").strip().lower()] = not line.startswith("-")
+    return out
 
 
 def load(path, default):

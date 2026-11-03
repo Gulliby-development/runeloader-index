@@ -52,6 +52,26 @@ class Check(unittest.TestCase):
         self.assertIn("• Fixed bug", e["changelog"])
         self.assertEqual([r["tag"] for r in e["releases"]], ["v2.0"])   # the beta has no Forever build
 
+    def test_gamepad_tag_from_list_and_rule(self):
+        e = {"repo": "o/Bags", "name": "Bags", "summary": "Bag slots", "topics": []}
+        b.tag(e, {"o/bags": True})
+        self.assertEqual(e["tags"], ["gamepad"])
+        e = {"repo": "o/Pad", "name": "Pad", "summary": "Gamepad wheels", "topics": [], "tags": ["gamepad"]}
+        b.tag(e, {"o/pad": False})   # "-o/Pad" in gamepad.txt wins over the rule
+        self.assertNotIn("tags", e)
+        e = {"repo": "o/Deck", "name": "Deck", "summary": "Presets", "topics": ["steam-deck"]}
+        b.tag(e, {})
+        self.assertEqual(e["tags"], ["gamepad"])
+
+    def test_gamepad_list_file(self):
+        import os, tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("# comment\nseblindfors/ConsolePort\n-o/RaidLootController  # not a gamepad\n\n")
+        try:
+            self.assertEqual(b.load_gamepad(f.name), {"seblindfors/consoleport": True, "o/raidlootcontroller": False})
+        finally:
+            os.remove(f.name)
+
     def test_no_forever_build(self):
         node = {"nameWithOwner": "o/X", "name": "X", "isArchived": False, "isFork": False,
                 "latestRelease": release("1", "X-classic.zip"), "releases": {"nodes": []}}

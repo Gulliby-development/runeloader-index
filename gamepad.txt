@@ -1,0 +1,58 @@
+# Addons made for playing with a gamepad or on a handheld (Steam Deck, Android handhelds).
+# "owner/repo" tags the addon "gamepad" in index.json and makes sure the index checks it.
+# "-owner/repo" never tags it, for addons the automatic rule gets wrong.
+# Add yours with a pull request.
+
+# Gamepad suites
+seblindfors/ConsolePort
+markgravity/ImprovedForever
+moust4ki/EasyControllerWowForever
+ubermoc/Ubermoc-UI
+wahfcore/AdaptiveUI
+Ironship/ClassicConsoleGamepadUI
+Milky691/Gamepad-Suite
+ShoValentine/WoWU-Controller
+
+# Crossbar, action bars, back paddles
+snrn-Pontus/Backhand
+snrn-Pontus/Grimoire
+Moose-Ltd/AutoSpellRanks
+arinrare/ArinController
+cjwhiskers/TriggerBar
+mikevromen/ControllerCrossbarSwap
+bitwize01/GamepadShoulderSlots
+
+# Wheels and rings
+RDirven/ForeverRings
+PopsIDX/emotes-compass
+peligwen/radical-radial
+
+# Chat and voice without a keyboard
+JEMPAS-FORGE/PadChat
+kubeden/gps
+
+# What the gamepad HUD lacks
+snrn-Pontus/Tally
+snrn-Pontus/Valet
+snrn-Pontus/Rummage
+RDirven/ControllerDot
+CasualBot/GamepadDot
+gjemad/EnhancedSoftInteract
+madstone-dev/QuestMapGamepad
+seblindfors/Immersion
+moust4ki/DingGuideWoWForever
+ivribalko/wow-fullscreen-menus
+sjdodge123/mailworthy
+
+# Handhelds
+eliog/DeckForeverAddon
+H3z0tv/H3z0-UI
+1onar/KeyUI
+
+# Not for a gamepad, although the words match
+-powerfulqa/RaidLootController
+-LenweSaralonde/MusicianMIDI
+-Ironship/WordHunterWoW
+-Ironship/UsefulPlatesAndTooltips
+-NinerBull/AccWideUILayoutSelection
+-Mortalknight/GW2_UI

@@ -44,5 +44,22 @@ class Category(unittest.TestCase):
         self.assertIsNone(details.category("", ["wow-addon"], "Hello"))
 
 
+class Gamepad(unittest.TestCase):
+    def test_clear_signals(self):
+        self.assertTrue(details.is_gamepad(["wow-addon", "gamepad"]))
+        self.assertTrue(details.is_gamepad([], {"notes": "Extra slots for the Steam Deck back paddles"}))
+        self.assertTrue(details.is_gamepad([], {}, "Tally", "Bag slots on WoW: Forever's gamepad HUD"))
+        self.assertTrue(details.is_gamepad([], {}, "Ubermoc UI", "Controller-first interface"))
+
+    def test_other_controllers_and_plain_addons(self):
+        self.assertFalse(details.is_gamepad(["wow-addon"], {}, "RaidLootController", "Fair raid loot without DKP"))
+        self.assertFalse(details.is_gamepad([], {}, "MusicianMIDI", "Play live with a MIDI controller"))
+        self.assertFalse(details.is_gamepad(["quests"], {"title": "Questie"}, "Questie", "Quest helper"))
+
+    def test_readme_is_only_a_hint(self):
+        self.assertTrue(details.mentions_gamepad("Works with ConsolePort."))
+        self.assertFalse(details.mentions_gamepad("A raid loot controller."))
+
+
 if __name__ == "__main__":
     unittest.main()

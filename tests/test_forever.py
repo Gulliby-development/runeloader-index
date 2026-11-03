@@ -42,6 +42,13 @@ class Assets(unittest.TestCase):
         self.assertFalse(forever.is_app_binary("Questie-v12.4.0+v1.0.10.zip"))
         self.assertFalse(forever.is_app_binary("Masque-12.1.8.zip"))
 
+    def test_clean_author_drops_email(self):
+        self.assertEqual(forever.clean_author("MooreaTV moorea@ymail.com"), "MooreaTV")
+        self.assertEqual(forever.clean_author("Jane Doe <jane.doe@example.org>"), "Jane Doe")
+        self.assertEqual(forever.clean_author("Bob (mailto:bob@x.io), Ann"), "Bob, Ann")
+        self.assertEqual(forever.clean_author("|cffff0000Tekkub|r"), "Tekkub")
+        self.assertEqual(forever.clean_author("someone@example.com"), "")
+
     def test_only_other_flavors(self):
         self.assertEqual(forever.pick_from_assets(self.names("A-classic.zip", "notes.txt")), (None, False))
 

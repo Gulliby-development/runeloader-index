@@ -115,6 +115,17 @@ def clean(text):
     return re.sub(r"\s+", " ", _COLOR.sub("", text or "")).strip()
 
 
+_EMAIL = re.compile(r"[<(\[]?\s*(mailto:)?[\w.+-]+@[\w-]+(\.[\w-]+)+\s*[>)\]]?")
+
+
+def clean_author(text):
+    """A TOC author without email addresses or the brackets around them."""
+    s = _EMAIL.sub(" ", clean(text))
+    s = re.sub(r"<\s*>|\(\s*\)|\[\s*\]", " ", s)
+    s = re.sub(r"\s+([,;])", r"\1", re.sub(r"\s+", " ", s))
+    return s.strip(" ,;:-/|")
+
+
 def parse_toc(text):
     """Return the "## Key: value" fields of a TOC, keys lower-cased."""
     fields = {}

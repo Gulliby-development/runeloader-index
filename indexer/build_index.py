@@ -407,8 +407,9 @@ def toc_meta(gh, node, c, entry):
         entry["name"] = forever.clean(f["title"]) or entry["name"]
     if f.get("notes"):
         entry["summary"] = forever.clean(f["notes"])
-    if f.get("author"):
-        entry["author"] = forever.clean(f["author"])
+    author = forever.clean_author(f.get("author"))
+    if author:
+        entry["author"] = author
     folder = path.rsplit("/", 2)[-2] if "/" in path else forever.toc_base(path) or node["name"]
     entry["folders"] = [folder]
     ids = forever.source_ids(f)

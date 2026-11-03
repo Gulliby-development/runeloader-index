@@ -1,0 +1,26 @@
+# Repositories always checked, one owner/repo per line. Add yours with a pull request.
+Questie/Questie
+RestedXP/RXPGuides
+Nevcairiel/Bartender4
+tullamods/Dominos
+d4kir92/MoveAny
+Tercioo/Plater-Nameplates
+Backupiseasy/ThreatPlates
+SFX-WoW/Masque
+Funkydude/SexyMap
+Nevcairiel/Mapster
+BigWigsMods/BigWigs
+DeadlyBossMods/DeadlyBossMods
+DeadlyBossMods/DBM-Dungeons
+DeadlyBossMods/DBM-Vanilla
+BigWigsMods/Capping
+ascott18/TellMeWhen
+dldvlpr-addons-wow/Musca-Auras
+tullamods/tullaRange
+Cidan/BetterBags
+kemayo/wow-simpleitemlevel
+TorelTwiddler/CanIMogIt
+kemayo/wow-silverdragon
+Stanzilla/AdvancedInterfaceOptions
+Hizuro/Broker_Everything
+Funkydude/BugSack

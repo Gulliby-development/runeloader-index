@@ -1,0 +1,53 @@
+name: Build index
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # daily, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: index
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the published index
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+            git fetch --depth 1 origin gh-pages
+            git worktree add site origin/gh-pages
+          else
+            mkdir site
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test
+        run: python -m unittest -v
+
+      - name: Build
+        env:
+          # A personal token (secret INDEX_TOKEN, public read only) gives more search and API quota.
+          GITHUB_TOKEN: ${{ secrets.INDEX_TOKEN || github.token }}
+        run: python -m indexer.build_index --out site
+
+      - name: Publish to gh-pages
+        run: |
+          cd site
+          git init -q -b gh-pages 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.json state.json
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -q -m "Index $(date -u +%Y-%m-%d)"
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:gh-pages

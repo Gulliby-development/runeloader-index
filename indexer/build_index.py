@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from . import forever
+from . import details, forever
 
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
@@ -178,19 +178,21 @@ def discover(gh, seeds):
 
 PRIORITY = {"seed": 0, "toc": 1, "topic": 2, "packager": 3}
 
+RELEASE_FIELDS = "tagName publishedAt isPrerelease description releaseAssets(first: 40) { nodes { name size downloadCount downloadUrl } }"
+
 REPO_FIELDS = """
   nameWithOwner name description stargazerCount isArchived isFork
   owner { login } defaultBranchRef { name }
   repositoryTopics(first: 10) { nodes { topic { name } } }
-  latestRelease { tagName publishedAt isPrerelease
-    releaseAssets(first: 50) { nodes { name size downloadCount downloadUrl } } }
-"""
+  latestRelease { %s }
+  releases(first: 6, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { %s } }
+""" % ((RELEASE_FIELDS,) * 2)
 
 
-def fetch_repos(gh, candidates, batch=40):
-    """Repo metadata and latest release for many repos, 40 per GraphQL query.
+def fetch_repos(gh, candidates, batch=30):
+    """Repo metadata and recent releases for many repos, 30 per GraphQL query.
 
-    One query costs about one rate-limit point, so a few thousand repos fit in the
+    One query costs a few rate-limit points, so a few thousand repos fit in the
     1000 points per hour the Actions token gets.
     """
     out = {}
@@ -212,15 +214,9 @@ def fetch_repos(gh, candidates, batch=40):
     return out
 
 
-def check(gh, c, node, cache):
-    """Return an index entry for a candidate, or None when it has no Forever build."""
-    if node.get("isArchived") or (node.get("isFork") and "seed" not in c.reasons):
-        return None
-    rel = node.get("latestRelease")
-    if not rel:
-        return None
+def forever_build(gh, rel, c, node, cache):
+    """The Forever asset of one release as {file, version, url, size, downloads, verified}, or None."""
     assets = (rel.get("releaseAssets") or {}).get("nodes") or []
-    entry = None
     rj_asset = next((a for a in assets if a.get("name") == "release.json"), None)
     if rj_asset:
         url = rj_asset["downloadUrl"]
@@ -230,21 +226,34 @@ def check(gh, c, node, cache):
             except (ValueError, urllib.error.HTTPError, urllib.error.URLError):
                 return None   # try again next run
         pick = cache[url]
-        if pick:
-            fname = pick.get("filename", "")
-            asset = next((a for a in assets if a.get("name") == fname), None)
-            if asset:
-                entry = {"file": fname, "version": pick.get("version") or forever.version_from_file(fname),
-                         "verified": True, "size": asset.get("size"), "downloads": asset.get("downloadCount"),
-                         "url": asset.get("downloadUrl")}
-    if entry is None and not rj_asset:
-        asset, guessed = forever.pick_from_assets(assets)
-        # A guessed zip counts only when the repo itself ships a Forever TOC.
-        names = [node["name"]] + [p.rsplit("/", 2)[-2] if "/" in p else node["name"] for p in c.toc_paths]
-        if asset and (not guessed or ("toc" in c.reasons and forever.guess_matches(asset["name"], names))):
-            entry = {"file": asset["name"], "version": rel.get("tagName") or forever.version_from_file(asset["name"]),
-                     "verified": not guessed, "size": asset.get("size"), "downloads": asset.get("downloadCount"),
-                     "url": asset.get("downloadUrl")}
+        if not pick:
+            return None
+        fname = pick.get("filename", "")
+        asset = next((a for a in assets if a.get("name") == fname), None)
+        if not asset:
+            return None
+        return {"file": fname, "version": pick.get("version") or forever.version_from_file(fname), "verified": True,
+                "size": asset.get("size"), "downloads": asset.get("downloadCount"), "url": asset.get("downloadUrl")}
+    asset, guessed = forever.pick_from_assets(assets)
+    if not asset:
+        return None
+    # A guessed zip counts only when the repo itself ships a Forever TOC and the zip carries its name.
+    names = [node["name"]] + [p.rsplit("/", 2)[-2] if "/" in p else node["name"] for p in c.toc_paths]
+    if guessed and not ("toc" in c.reasons and forever.guess_matches(asset["name"], names)):
+        return None
+    return {"file": asset["name"], "version": rel.get("tagName") or forever.version_from_file(asset["name"]),
+            "verified": not guessed, "size": asset.get("size"), "downloads": asset.get("downloadCount"),
+            "url": asset.get("downloadUrl")}
+
+
+def check(gh, c, node, cache):
+    """Return an index entry for a candidate, or None when it has no Forever build."""
+    if node.get("isArchived") or (node.get("isFork") and "seed" not in c.reasons):
+        return None
+    rel = node.get("latestRelease")
+    if not rel:
+        return None
+    entry = forever_build(gh, rel, c, node, cache)
     if entry is None:
         return None
 
@@ -260,22 +269,62 @@ def check(gh, c, node, cache):
         "prerelease": bool(rel.get("isPrerelease")),
         "found_by": sorted(c.reasons, key=lambda r: PRIORITY.get(r, 9)),
     })
-    toc_meta(gh, node, c, entry)
+    notes = details.plain_text(rel.get("description") or "", limit=4000)
+    if notes:
+        entry["changelog"] = notes
+
+    releases = []
+    for r in (node.get("releases") or {}).get("nodes") or []:
+        b = forever_build(gh, r, c, node, cache)
+        if not b:
+            continue
+        item = {"tag": r.get("tagName", ""), "version": b["version"], "released": r.get("publishedAt"),
+                "prerelease": bool(r.get("isPrerelease")), "file": b["file"], "url": b["url"], "size": b["size"]}
+        log_text = details.plain_text(r.get("description") or "", limit=4000)
+        if log_text:
+            item["changelog"] = log_text
+        releases.append(item)
+        if len(releases) == 5:
+            break
+    if releases:
+        entry["releases"] = releases
+
+    fields = toc_meta(gh, node, c, entry)
+    readme_meta(gh, node, entry)
+    cat = details.category(fields.get("x-category", ""), entry["topics"], entry["name"] + " " + entry["summary"])
+    if cat:
+        entry["category"] = cat
     return entry
+
+
+def readme_meta(gh, node, entry):
+    branch = (node.get("defaultBranchRef") or {}).get("name", "main")
+    base = "%s/%s/%s/" % (RAW, node["nameWithOwner"], branch)
+    for name in ("README.md", "readme.md", "Readme.md", "README.MD", "README"):
+        try:
+            text = gh._request(base + name, accept="text/plain")
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            continue
+        desc, shots = details.readme(text, base)
+        if desc:
+            entry["description"] = desc
+        if shots:
+            entry["screenshots"] = shots
+        return
 
 
 def toc_meta(gh, node, c, entry):
     """Title, notes, author, folder and other-site ids from the Forever TOC on the default branch."""
     paths = list(c.toc_paths)
     if not paths:
-        return
+        return {}
     path = sorted(paths, key=lambda p: (p.count("/"), len(p)))[0]
     branch = (node.get("defaultBranchRef") or {}).get("name", "main")
     url = "%s/%s/%s/%s" % (RAW, node["nameWithOwner"], branch, urllib.parse.quote(path))
     try:
         text = gh._request(url, accept="text/plain")
-    except urllib.error.HTTPError:
-        return
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        return {}
     f = forever.parse_toc(text)
     if f.get("title"):
         entry["name"] = forever.clean(f["title"]) or entry["name"]
@@ -283,11 +332,12 @@ def toc_meta(gh, node, c, entry):
         entry["summary"] = forever.clean(f["notes"])
     if f.get("author"):
         entry["author"] = forever.clean(f["author"])
-    folder = path.rsplit("/", 2)[-2] if "/" in path else node["name"]
+    folder = path.rsplit("/", 2)[-2] if "/" in path else forever.toc_base(path) or node["name"]
     entry["folders"] = [folder]
     ids = forever.source_ids(f)
     if ids:
         entry["ids"] = ids
+    return f
 
 
 def main(argv=None):

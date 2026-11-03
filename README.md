@@ -8,7 +8,7 @@ A daily list of World of Warcraft addons on GitHub whose latest release has a **
 
 1. **Found.** The daily job finds repositories by Forever TOC files (`_Forever.toc`, `_Camelot.toc`, `## Interface: 160xx`), by BigWigs packager use, by topics such as `wow-addon`, and from [`seeds.txt`](seeds.txt).
 2. **Checked.** Its latest release must have a Forever build: a `release.json` entry with the `forever` or `camelot` flavor, or a zip named for Forever.
-3. **Listed.** Name, author, summary, version, download URL and the addon's CurseForge, WoWInterface and Wago ids from its TOC.
+3. **Listed.** Name, author, summary, version, download URL, folders, description and screenshots from the README, category, changelog, the last five Forever releases, and the addon's CurseForge, WoWInterface and Wago ids from its TOC.
 
 Missing an addon? Add `owner/repo` to `seeds.txt` in a pull request, or publish your releases with [BigWigs packager](https://github.com/BigWigsMods/packager) and a Forever TOC.
 

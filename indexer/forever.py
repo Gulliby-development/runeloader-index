@@ -91,6 +91,12 @@ def guess_matches(asset_name, names):
     return any(len(k) >= 3 and re.sub(r"[^a-z0-9]", "", k.lower()) in n for k in names if k)
 
 
+def toc_base(path):
+    """"Bagnon_Forever.toc" -> "Bagnon": the folder name a TOC belongs to."""
+    m = _FOREVER_TOC.match(posixpath.basename(path))
+    return m.group("base") if m else None
+
+
 def interface_is_forever(value):
     return any(p.strip().startswith(FOREVER_INTERFACE_PREFIX) for p in str(value or "").split(","))
 

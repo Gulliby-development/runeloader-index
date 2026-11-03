@@ -60,5 +60,19 @@ class Check(unittest.TestCase):
         self.assertIsNone(b.check(FakeGitHub({}), c, node, {}))
 
 
+class Discover(unittest.TestCase):
+    def test_keeps_earlier_candidates_when_search_fails(self):
+        class NoSearch:
+            last_total = 0
+
+            def search(self, kind, q, max_pages=10):
+                return iter(())
+        known = {"o/a": {"repo": "o/A", "reasons": ["toc"], "toc_paths": ["A/A_Forever.toc"]}}
+        found = b.discover(NoSearch(), ["s/Seed"], known)
+        self.assertEqual(sorted(c.repo for c in found.values()), ["o/A", "s/Seed"])
+        self.assertEqual(found["o/a"].toc_paths, ["A/A_Forever.toc"])
+        self.assertEqual(b.remember(found), {"o/a": {"repo": "o/A", "reasons": ["toc"], "toc_paths": ["A/A_Forever.toc"]}})
+
+
 if __name__ == "__main__":
     unittest.main()

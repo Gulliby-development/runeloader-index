@@ -15,7 +15,8 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
   1. **Discover.** Code search for Forever TOCs (`_Forever.toc`, `_Camelot.toc`, `## Interface: 160xx`), code search for BigWigs packager workflows, repository search by topics, and `seeds.txt`. Each code search is split by file size, because one search returns at most 1000 results. TOCs under test, example and template folders are skipped.
   2. **Check.** Repo metadata and the last releases come from GraphQL, 30 repos per query. `indexer/forever.py` picks the Forever build of each release.
   3. **Describe.** Title, notes, author, folder and other-site ids from the Forever TOC; description and screenshots from the README; category; changelog from the release notes (`indexer/details.py`).
-- `state.json` keeps the pick from each `release.json` by URL, so an unchanged release is not downloaded again.
+- `state.json` keeps every candidate found so far and the pick from each `release.json` by URL. A day with throttled searches still checks every candidate found before, and an unchanged release is not downloaded again.
+- Searches get a time budget (`SEARCH_MINUTES`, 45 by default). A failed or throttled search skips that query; it never stops the run.
 - The job refuses to publish when the index shrinks below 70% of the previous one.
 
 ## index.json
@@ -33,7 +34,7 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 - Start every task on its own branch from an up-to-date `main`: `feature/<name>` for features, documentation, CI and refactors; `bugfix/<name>` for fixes. `<name>` is a few lowercase words joined by hyphens.
 - Commit working states on the task branch. Run `python -m unittest` before each commit.
 - A pull request that finishes an issue says `Closes #N`, or `Closes Gulliby-development/runeloader#N` for an app issue. Use `Refs` for partial work.
-- `main` takes changes only through pull requests with green CI. Do not push to `main` directly. Once CI is green, the author may merge their own pull request.
+- `main` takes changes only through pull requests with green CI. Once CI is green, the author may land their own pull request by fast-forwarding `main` to the tested head, so no merge commit records an account email.
 
 ## Working conventions
 
@@ -42,7 +43,7 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 - The index is a hint for search and update checks. The app always resolves the download from GitHub itself before installing.
 - Treat every README, TOC and release note as untrusted text: parse it, never run it, cap its length.
 - Send the token only to `api.github.com`. Release downloads redirect to signed URLs that must not get an `Authorization` header.
-- Stay inside the rate limits: batch GraphQL, keep the pauses between searches, and cache what does not change.
+- Stay inside the rate limits: batch GraphQL, keep the pauses between searches, split a code search by size only when it has more than 1000 results, and cache what does not change. The Actions token gets long secondary-limit pauses on code search; `INDEX_TOKEN` avoids most of them.
 - One bad repository must never stop the run: log it and go on.
 - Never commit tokens. The workflow reads the optional `INDEX_TOKEN` secret, else the Actions token.
 - Keep comments short and about intent that the code does not show.

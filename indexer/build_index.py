@@ -27,8 +27,7 @@ UA = "runeloader-index"
 # Code search: the most precise signals first. Each query is also split by file
 # size, because one search returns at most 1000 results.
 SIZE_SLICES = ("size:<600", "size:600..1200", "size:1201..2500", "size:>2500")
-TOC_QUERIES = ("filename:_Forever.toc", "filename:_Camelot.toc", "filename:-Forever.toc",
-               '"## Interface: 160" extension:toc')
+TOC_QUERIES = ("filename:_Forever.toc", "filename:_Camelot.toc", '"## Interface: 160" extension:toc')
 PACKAGER_QUERIES = ("BigWigsMods/packager path:.github/workflows",)
 REPO_QUERIES = ("topic:wow-addon", "topic:world-of-warcraft-addon", "topic:wow-addons",
                 "topic:worldofwarcraft-addon", "topic:wow-forever", "wow forever addon in:name,description,readme")
@@ -42,6 +41,8 @@ class GitHub:
     def __init__(self, token):
         self.token = token
         self.calls = 0
+        self.search_deadline = None
+        self.last_total = 0
         self.last_search = 0.0
 
     def _request(self, url, accept="application/vnd.github+json"):
@@ -56,7 +57,7 @@ class GitHub:
                     self.calls += 1
                     return r.read().decode("utf-8", "replace")
             except urllib.error.HTTPError as e:
-                if e.code in (403, 429) and self._wait_for_limit(e):
+                if e.code in (403, 429) and self._wait_for_limit(e, url):
                     continue
                 if e.code >= 500 and attempt < 3:
                     time.sleep(2 ** attempt)
@@ -69,7 +70,7 @@ class GitHub:
                 raise
         raise RuntimeError("gave up on " + url)
 
-    def _wait_for_limit(self, e):
+    def _wait_for_limit(self, e, url=""):
         reset = e.headers.get("X-RateLimit-Reset")
         retry = e.headers.get("Retry-After")
         if retry:
@@ -77,6 +78,9 @@ class GitHub:
         elif reset and e.headers.get("X-RateLimit-Remaining") == "0":
             wait = max(1, int(reset) - int(time.time()) + 2)
         else:
+            return False
+        if "/search/" in url and self.search_deadline and time.time() + wait > self.search_deadline:
+            log("search throttled for %ds, past the search time; skipping" % wait)
             return False
         if wait > 900:
             log("rate limit resets in %ds, stopping this source" % wait)
@@ -115,17 +119,25 @@ class GitHub:
         return res.get("data")
 
     def search(self, kind, q, max_pages=10):
-        """Yield items of a code or repo search, 100 per page, up to 1000."""
+        """Yield items of a code or repo search, 100 per page, up to 1000.
+
+        A failed or throttled search ends that query only; the run goes on.
+        """
         for page in range(1, max_pages + 1):
+            if self.search_deadline and time.time() > self.search_deadline:
+                log("search time is up, skipping: %s" % q)
+                return
             gap = 6.5 if kind == "code" else 2.2      # code search: 10/min, repo search: 30/min
             time.sleep(max(0.0, self.last_search + gap - time.time()))
             self.last_search = time.time()
             url = "%s/search/%s?q=%s&per_page=100&page=%d" % (API, kind, urllib.parse.quote(q), page)
             try:
                 data = self.json(url)
-            except urllib.error.HTTPError as e:
-                log("search failed (%s): %s" % (e.code, q))
+            except (urllib.error.HTTPError, urllib.error.URLError, RuntimeError, ValueError) as e:
+                log("search failed (%s): %s" % (getattr(e, "code", e), q))
                 return
+            if page == 1:
+                self.last_total = data.get("total_count", 0)
             items = data.get("items") or []
             yield from items
             if len(items) < 100:
@@ -139,7 +151,12 @@ class Candidate:
         self.toc_paths = []   # Forever TOCs seen in code search
 
 
-def discover(gh, seeds):
+def discover(gh, seeds, known):
+    """Candidates from seeds, earlier runs and today's searches.
+
+    Candidates found on earlier days are kept in state.json, so a day with a
+    throttled search still checks everything found before.
+    """
     found = {}
 
     def add(repo, reason, toc=None):
@@ -151,29 +168,51 @@ def discover(gh, seeds):
 
     for repo in seeds:
         add(repo, "seed")
+    for repo, k in (known or {}).items():
+        for r in k.get("reasons", []):
+            add(k.get("repo", repo), r)
+        for t in k.get("toc_paths", []):
+            add(k.get("repo", repo), "toc", t)
+
+    def code(q, handle):
+        # Split by file size only when one query has more than 1000 results.
+        first = list(gh.search("code", q))
+        if gh.last_total <= 1000:
+            slices = [first]
+        else:
+            slices = (gh.search("code", "%s %s" % (q, s)) for s in SIZE_SLICES)
+        for items in slices:
+            for it in items:
+                handle(it)
+
+    def toc_hit(q):
+        def handle(it):
+            path = it.get("path", "")
+            repo = (it.get("repository") or {}).get("full_name")
+            if repo and not forever.is_sample_path(path) and (q.startswith('"## Interface') or forever.is_forever_toc_path(path)):
+                add(repo, "toc", path)
+        return handle
+
+    def packager_hit(it):
+        repo = (it.get("repository") or {}).get("full_name")
+        if repo:
+            add(repo, "packager")
+
     for q in TOC_QUERIES:
-        for s in SIZE_SLICES:
-            for it in gh.search("code", "%s %s" % (q, s)):
-                path = it.get("path", "")
-                repo = (it.get("repository") or {}).get("full_name")
-                if not repo:
-                    continue
-                if forever.is_sample_path(path):
-                    continue
-                if q.startswith('"## Interface') or forever.is_forever_toc_path(path):
-                    add(repo, "toc", path)
-    for q in PACKAGER_QUERIES:
-        for s in SIZE_SLICES:
-            for it in gh.search("code", "%s %s" % (q, s)):
-                repo = (it.get("repository") or {}).get("full_name")
-                if repo:
-                    add(repo, "packager")
+        code(q, toc_hit(q))
     for q in REPO_QUERIES:
         for it in gh.search("repositories", q):
             if not it.get("fork") and not it.get("archived"):
                 add(it["full_name"], "topic")
+    for q in PACKAGER_QUERIES:   # broadest and slowest, so last
+        code(q, packager_hit)
     log("candidates: %d" % len(found))
     return found
+
+
+def remember(found):
+    return {k: {"repo": c.repo, "reasons": sorted(c.reasons - {"seed"}), "toc_paths": c.toc_paths}
+            for k, c in found.items() if c.reasons - {"seed"}}
 
 
 PRIORITY = {"seed": 0, "toc": 1, "topic": 2, "packager": 3}
@@ -345,6 +384,8 @@ def main(argv=None):
     p.add_argument("--out", default="site")
     p.add_argument("--seeds", default="seeds.txt")
     p.add_argument("--max-checks", type=int, default=int(os.environ.get("MAX_CHECKS", "2500")))
+    p.add_argument("--search-minutes", type=int, default=int(os.environ.get("SEARCH_MINUTES", "45")),
+                   help="time for searches; candidates from earlier runs are checked either way")
     p.add_argument("--min-ratio", type=float, default=0.7, help="refuse to publish if the index shrinks below this share")
     args = p.parse_args(argv)
 
@@ -362,7 +403,9 @@ def main(argv=None):
     seeds = [l.split("#")[0].strip() for l in open(args.seeds, encoding="utf-8")] if os.path.exists(args.seeds) else []
     seeds = [s for s in seeds if "/" in s]
 
-    found = discover(gh, seeds)
+    gh.search_deadline = time.time() + args.search_minutes * 60
+    found = discover(gh, seeds, state.get("candidates"))
+    state["candidates"] = remember(found)
     ordered = sorted(found.values(), key=lambda c: (min(PRIORITY.get(r, 9) for r in c.reasons), c.repo.lower()))
     ordered = ordered[:args.max_checks]
     nodes = fetch_repos(gh, ordered)

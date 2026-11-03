@@ -47,7 +47,7 @@ jobs:
           git init -q -b gh-pages 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.json state.json
+          git add index.json state.json icons 2>/dev/null || git add index.json state.json
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -q -m "Index $(date -u +%Y-%m-%d)"
           git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:gh-pages

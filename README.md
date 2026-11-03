@@ -8,7 +8,7 @@ A daily list of World of Warcraft addons on GitHub that have a **WoW Forever** b
 
 1. **Found.** Its repository has a Forever TOC (`_Forever.toc`, `_Camelot.toc` or `## Interface: 160xx`), is built with BigWigs packager, has a topic such as `wow-addon`, or is listed in [`seeds.txt`](seeds.txt).
 2. **Checked.** Its latest GitHub release has a Forever build: a `release.json` entry with the `forever` or `camelot` flavor, or a zip named for Forever.
-3. **Listed.** With name, author, summary, version, download link, description and screenshots from the README, category, changelog and the last five Forever releases.
+3. **Listed.** With name, author, summary, version, download link, logo from the TOC `IconTexture`, description and screenshots from the README, category, changelog and the last five Forever releases.
 
 ## Addon authors
 

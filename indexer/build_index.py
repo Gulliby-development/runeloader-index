@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from . import details, forever
+from . import details, forever, icons
 
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
@@ -379,6 +379,25 @@ def toc_meta(gh, node, c, entry):
     return f
 
 
+def zip_meta(entry, cache, out_dir):
+    """Folders and logo from the release zip; each zip URL is read once and remembered."""
+    url = entry.get("url")
+    if not url:
+        return
+    meta = cache.get(url)
+    if meta is None or (meta.get("icon") and not os.path.exists(os.path.join(out_dir, meta["icon"]))):
+        try:
+            meta = icons.from_zip(url, entry["repo"], entry.get("folders") or [], out_dir, log=log)
+        except Exception as ex:   # an odd zip must not stop the run; try again tomorrow
+            log("zip %s: %s" % (entry["repo"], ex))
+            return
+        cache[url] = meta
+    if meta.get("folders"):
+        entry["folders"] = meta["folders"]
+    if meta.get("icon"):
+        entry["icon"] = meta["icon"]
+
+
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="site")
@@ -425,6 +444,19 @@ def main(argv=None):
         if e and e["repo"].lower() not in seen:   # renamed repos can show up twice
             seen.add(e["repo"].lower())
             addons.append(e)
+
+    zips = state.setdefault("zips", {})
+    for i, e in enumerate(addons):
+        zip_meta(e, zips, args.out)
+        if i % 100 == 0:
+            log("zips read: %d/%d" % (i, len(addons)))
+    zips_live = {e["url"] for e in addons}
+    state["zips"] = {u: v for u, v in zips.items() if u in zips_live}
+    used = {e["icon"] for e in addons if e.get("icon")}
+    icon_dir = os.path.join(args.out, "icons")
+    for f in os.listdir(icon_dir) if os.path.isdir(icon_dir) else []:
+        if "icons/" + f not in used:
+            os.remove(os.path.join(icon_dir, f))
 
     addons.sort(key=lambda a: (-a.get("stars", 0), a["repo"].lower()))
     old_n = len(old.get("addons") or [])

@@ -21,7 +21,7 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
 
 ## index.json
 
-Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and, later, `icon`.
+Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`).
 
 The app tolerates missing keys. Add a key freely, but never rename or remove one without a new `schema` number and the matching change in the app.
 
@@ -58,6 +58,9 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 - `indexer/build_index.py`: discovery, GraphQL batches, the main loop and publishing.
 - `indexer/forever.py`: Forever build rules, TOC parsing, other-site ids.
 - `indexer/details.py`: README and release notes to plain text, screenshots, category.
+- `indexer/remotezip.py`: reads the file list and single files of a release zip with HTTP range requests.
+- `indexer/images.py`: BLP2 and TGA decoding, scaling, PNG output (standard library only).
+- `indexer/icons.py`: addon folders and the logo from the release zip.
 - `seeds.txt`: repositories always checked.
 - `tests/`: unit tests, including a full `check()` against a fake GitHub.
 - `.github/workflows/index.yml`: the daily job. `.github/workflows/test.yml`: tests on pull requests.

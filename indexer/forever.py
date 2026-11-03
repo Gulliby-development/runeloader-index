@@ -41,13 +41,22 @@ def pick_from_release_json(data):
     return best
 
 
+_BINARY = re.compile(r"(^|[-_. ])(win(dows)?|win64|win32|linux|mac(os)?|osx|darwin|x64|x86(_64)?|amd64|arm64|aarch64|setup|installer|portable|candidate)([-_. ]|$)",
+                     re.IGNORECASE)
+
+
+def is_app_binary(name):
+    """True for zips of desktop programs (simulators, launchers) rather than addons."""
+    return bool(_BINARY.search(re.sub(r"(?i)\.zip$", "", name or "")))
+
+
 def pick_from_assets(assets):
     """Return (asset, guessed) for a release without release.json, or (None, False).
 
     A zip named for Forever is a sure pick. Otherwise the first zip that names no
     other flavor and is not "nolib" is a guess.
     """
-    zips = [a for a in assets or [] if str(a.get("name", "")).lower().endswith(".zip")]
+    zips = [a for a in assets or [] if str(a.get("name", "")).lower().endswith(".zip") and not is_app_binary(a["name"])]
     for a in zips:
         n = a["name"].lower()
         if "forever" in n or "camelot" in n:

@@ -36,6 +36,12 @@ class Assets(unittest.TestCase):
         a, guessed = forever.pick_from_assets(self.names("A-1.0-classic.zip", "A-1.0-nolib.zip", "A-1.0.zip"))
         self.assertEqual((a["name"], guessed), ("A-1.0.zip", True))
 
+    def test_skips_desktop_programs(self):
+        self.assertEqual(forever.pick_from_assets(self.names("wow-ui-sim-v0.1.39-forever-windows-x86_64.zip",
+                                                             "TypeWhisper-1.2.2-win-x64-candidate.zip")), (None, False))
+        self.assertFalse(forever.is_app_binary("Questie-v12.4.0+v1.0.10.zip"))
+        self.assertFalse(forever.is_app_binary("Masque-12.1.8.zip"))
+
     def test_only_other_flavors(self):
         self.assertEqual(forever.pick_from_assets(self.names("A-classic.zip", "notes.txt")), (None, False))
 

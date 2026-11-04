@@ -24,3 +24,5 @@ kemayo/wow-silverdragon
 Stanzilla/AdvancedInterfaceOptions
 Hizuro/Broker_Everything
 Funkydude/BugSack
+funkydude/BadBoy                  # required by BadBoy_Levels
+Nerzors/NerzorsBlacklistKeeper    # required by tRP3_NBK

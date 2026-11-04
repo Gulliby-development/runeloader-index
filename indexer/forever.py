@@ -15,6 +15,7 @@ FOREVER_INTERFACE_PREFIX = "160"
 
 _FOREVER_TOC = re.compile(r"^(?P<base>.+?)[_-](?P<suffix>forever|camelot)\.toc$", re.IGNORECASE)
 _COLOR = re.compile(r"\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|A[^|]*\|a")
+_PACKAGER_TOKEN = re.compile(r"@[a-z][a-z0-9-]*@")   # left unreplaced when an addon is zipped without the packager
 
 
 def pick_from_release_json(data):
@@ -112,7 +113,7 @@ def interface_is_forever(value):
 
 def clean(text):
     """Strip WoW colour, texture and atlas escapes from a TOC string."""
-    return re.sub(r"\s+", " ", _COLOR.sub("", text or "")).strip()
+    return re.sub(r"\s+", " ", _PACKAGER_TOKEN.sub("", _COLOR.sub("", text or ""))).strip()
 
 
 _EMAIL = re.compile(r"[<(\[]?\s*(mailto:)?[\w.+-]+@[\w-]+(\.[\w-]+)+\s*[>)\]]?")

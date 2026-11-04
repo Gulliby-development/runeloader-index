@@ -48,6 +48,9 @@ class Assets(unittest.TestCase):
         self.assertEqual(forever.clean_author("Bob (mailto:bob@x.io), Ann"), "Bob, Ann")
         self.assertEqual(forever.clean_author("|cffff0000Tekkub|r"), "Tekkub")
         self.assertEqual(forever.clean_author("someone@example.com"), "")
+        self.assertEqual(forever.clean_author("@project-author@"), "")
+        self.assertEqual(forever.clean_author("Yaxal @ Spineshatter"), "Yaxal @ Spineshatter")
+        self.assertEqual(forever.clean("Quester @project-version@"), "Quester")
 
     def test_only_other_flavors(self):
         self.assertEqual(forever.pick_from_assets(self.names("A-classic.zip", "notes.txt")), (None, False))

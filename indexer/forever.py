@@ -150,6 +150,39 @@ def source_ids(fields):
     return ids
 
 
+_MODULE_TAG = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_]*)-v?\d")
+
+
+def module_of(tag):
+    """"Wheel-v0.10.0" -> "Wheel": the module a per-module release tag belongs to, else None."""
+    m = _MODULE_TAG.match(tag or "")
+    return m.group("name") if m else None
+
+
+def is_core_module(name, repo_name):
+    return (name or "").lower() in ("core", (repo_name or "").lower())
+
+
+def is_module_repo(releases):
+    """Two or more module names among the release tags; plain "v1.2" tags are ignored."""
+    return len({m.lower() for m in (module_of(r.get("tagName")) for r in releases) if m}) >= 2
+
+
+def core_release(releases, repo_name):
+    """For a repo that releases each module on its own tag (Core-v1, Wheel-v2, ...), the newest
+    published release of the core; None when the repo does not release that way.
+
+    Its latest release alone would install one module without the core it needs.
+    Same rule as the app's Sources.GitHub.
+    """
+    if not is_module_repo(releases):
+        return None
+    for r in releases:   # newest first
+        if not r.get("isPrerelease") and is_core_module(module_of(r.get("tagName")), repo_name):
+            return r
+    return None
+
+
 def version_from_file(name):
     n = re.sub(r"(?i)\.zip$", "", name or "")
     m = re.search(r"v?\d+(\.\d+)+\S*", n)

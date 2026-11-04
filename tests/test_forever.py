@@ -95,5 +95,27 @@ class Toc(unittest.TestCase):
         self.assertEqual(forever.version_from_file("Questie-v10.2.3.zip"), "v10.2.3")
 
 
+class Modules(unittest.TestCase):
+    def rel(self, tag, pre=False):
+        return {"tagName": tag, "isPrerelease": pre}
+
+    def test_module_tags(self):
+        self.assertEqual(forever.module_of("Wheel-v0.10.0"), "Wheel")
+        self.assertEqual(forever.module_of("Core-v1.2"), "Core")
+        self.assertIsNone(forever.module_of("v1.2"))
+        self.assertIsNone(forever.module_of("bundle/v12.4.0"))
+
+    def test_core_of_a_module_repo(self):
+        rels = [self.rel("Camp-v0.1.0"), self.rel("Core-v0.9.0-beta1", pre=True), self.rel("Wheel-v0.10.0"),
+                self.rel("Core-v0.8.2"), self.rel("v0.1")]
+        self.assertEqual(forever.core_release(rels, "ImprovedForever")["tagName"], "Core-v0.8.2")
+        named = [self.rel("Wheel-v2"), self.rel("ImprovedForever-v1")]
+        self.assertEqual(forever.core_release(named, "ImprovedForever")["tagName"], "ImprovedForever-v1")
+
+    def test_plain_repos_are_not_module_repos(self):
+        self.assertIsNone(forever.core_release([self.rel("Questie-v12"), self.rel("Questie-v11")], "Questie"))
+        self.assertIsNone(forever.core_release([self.rel("v2"), self.rel("v1")], "X"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,7 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 ## Working conventions
 
 - Use the Python standard library only, Python 3.10+. A new dependency needs an issue and the owner's decision first.
+- A repo that releases each module on its own tag (`Core-v1`, `Wheel-v2`, ...) is listed as its core release (`forever.core_release`); the app follows the same rule in `Sources.GitHub`.
 - The Forever build is picked with the same rules as the app. A change to `indexer/forever.py` needs the same change in the app's `Sources.GitHub` or `Toc`, with a test on both sides.
 - The index is a hint for search and update checks. The app always resolves the download from GitHub itself before installing.
 - Treat every README, TOC and release note as untrusted text: parse it, never run it, cap its length.

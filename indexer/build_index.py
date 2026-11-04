@@ -312,6 +312,19 @@ def check(gh, c, node, cache, gamepad=None):
     rel = node.get("latestRelease")
     if not rel:
         return None
+    history = (node.get("releases") or {}).get("nodes") or []
+    module = forever.module_of(rel.get("tagName"))
+    if module and not forever.is_core_module(module, node["name"]):
+        core = forever.core_release(history, node["name"])
+        if core is None:
+            more = module_releases(gh, node["nameWithOwner"])
+            core = forever.core_release(more, node["name"])
+            history = more or history
+        if core is not None:
+            rel = core
+            history = [r for r in history if forever.is_core_module(forever.module_of(r.get("tagName")), node["name"])]
+        elif forever.is_module_repo(history):
+            return None   # modules only, no core to install
     entry = forever_build(gh, rel, c, node, cache)
     if entry is None:
         return None
@@ -333,7 +346,7 @@ def check(gh, c, node, cache, gamepad=None):
         entry["changelog"] = notes
 
     releases = []
-    for r in (node.get("releases") or {}).get("nodes") or []:
+    for r in history:
         b = forever_build(gh, r, c, node, cache)
         if not b:
             continue
@@ -371,6 +384,19 @@ def tag(entry, gamepad, fields=None, readme=""):
         entry["tags"] = tags
     else:
         entry.pop("tags", None)
+
+
+def module_releases(gh, repo):
+    """Up to 100 releases, newest first, in the GraphQL shape; [] when GitHub does not answer."""
+    try:
+        data = gh.json("/repos/%s/releases?per_page=100" % repo)
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, RuntimeError):
+        return []
+    return [{"tagName": r.get("tag_name", ""), "publishedAt": r.get("published_at"), "isPrerelease": bool(r.get("prerelease")),
+             "description": r.get("body") or "",
+             "releaseAssets": {"nodes": [{"name": a.get("name"), "size": a.get("size"), "downloadCount": a.get("download_count"),
+                                          "downloadUrl": a.get("browser_download_url")} for a in r.get("assets") or []]}}
+            for r in data if isinstance(r, dict) and not r.get("draft")]
 
 
 def readme_meta(gh, node, entry):
@@ -540,10 +566,11 @@ def load_gamepad(path):
     out = {}
     if not os.path.exists(path):
         return out
-    for line in open(path, encoding="utf-8"):
-        line = line.split("#")[0].strip()
-        if "/" in line:
-            out[line.lstrip("-").strip().lower()] = not line.startswith("-")
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#")[0].strip()
+            if "/" in line:
+                out[line.lstrip("-").strip().lower()] = not line.startswith("-")
     return out
 
 

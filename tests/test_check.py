@@ -8,6 +8,10 @@ class FakeGitHub:
     def __init__(self, files):
         self.files = files
 
+    def json(self, path, **kw):
+        import urllib.error
+        raise urllib.error.HTTPError(path, 404, "nf", {}, None)
+
     def _request(self, url, accept=None):
         if url in self.files:
             return self.files[url]
@@ -71,6 +75,31 @@ class Check(unittest.TestCase):
             self.assertEqual(b.load_gamepad(f.name), {"seblindfors/consoleport": True, "o/raidlootcontroller": False})
         finally:
             os.remove(f.name)
+
+    def test_module_repo_lists_the_core(self):
+        def mod_rel(tag, name):
+            return release(tag, name)
+        camp = mod_rel("Camp-v0.1.0", "Pack_Camp-0.1.0.zip")
+        core = mod_rel("Core-v0.8.0", "Pack-0.8.0.zip")
+        node = {"nameWithOwner": "o/Pack", "name": "Pack", "description": "", "stargazerCount": 1,
+                "isArchived": False, "isFork": False, "owner": {"login": "o"}, "defaultBranchRef": {"name": "main"},
+                "repositoryTopics": {"nodes": []}, "latestRelease": camp,
+                "releases": {"nodes": [camp, mod_rel("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip"), core]}}
+        c = b.Candidate("o/Pack")
+        c.reasons.add("toc")
+        c.toc_paths.append("Pack/Pack_Forever.toc")
+        e = b.check(FakeGitHub({}), c, node, {})
+        self.assertEqual(e["file"], "Pack-0.8.0.zip")
+        self.assertEqual(e["tag"], "Core-v0.8.0")
+        self.assertEqual([r["tag"] for r in e["releases"]], ["Core-v0.8.0"])
+
+    def test_module_repo_without_core_is_left_out(self):
+        camp = release("Camp-v0.1.0", "Pack_Camp-0.1.0.zip")
+        node = {"nameWithOwner": "o/Pack", "name": "Pack", "isArchived": False, "isFork": False,
+                "latestRelease": camp, "releases": {"nodes": [camp, release("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip")]}}
+        c = b.Candidate("o/Pack")
+        c.reasons.add("toc")
+        self.assertIsNone(b.check(FakeGitHub({}), c, node, {}))
 
     def test_no_forever_build(self):
         node = {"nameWithOwner": "o/X", "name": "X", "isArchived": False, "isFork": False,

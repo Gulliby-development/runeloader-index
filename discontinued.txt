@@ -1,0 +1,7 @@
+# Addons whose authors stopped them, when GitHub itself does not say so (the repo is not
+# archived and its README has no notice). Each one is marked "discontinued" in index.json.
+# "owner/repo successor" also names the addon to use instead (an index entry key).
+# "-owner/repo" never marks the addon, for a notice the automatic rule reads wrong.
+# Say where the author said it, after a " #". Add yours with a pull request.
+
+moust4ki/DingGuideWoWForever fitzforge/polestar   # CurseForge page, 2026-11: "Ding has been discontinued, all features have been ported to the community addon Polestar"

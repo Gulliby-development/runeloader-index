@@ -24,6 +24,12 @@ To retag the published index after you change `gamepad.txt`, without a full run:
 python -m indexer.build_index --out site --tags-only
 ```
 
+## Discontinued addons
+
+An addon whose author stopped it stays listed with `"discontinued"`, so players who installed it learn that it is over: `archived` when the repository is archived, `notice` when the repo description, the TOC notes or the start of the README say so about the addon itself ("This addon is no longer maintained", "Deprecated", "has moved to ..."), `listed` when [`discontinued.txt`](discontinued.txt) names it (for a notice that is only on another site). `discontinued_note` keeps the author's sentence, and `successor` names the index entry to use instead, from a GitHub link in the notice or the second column of `discontinued.txt`. `-owner/repo` there keeps the mark off an addon the rule reads wrong. `--tags-only` also applies `discontinued.txt`.
+
+The index does not mark an addon because of an old release alone: WoW Forever is young, and a finished addon may not need updates.
+
 ## Review of risky addons
 
 Each run also checks the release zip of every listed addon for things that can break its install or load: no addon folder the app can find, no Forever TOC or `## Interface: 160xx`, unreplaced packager tokens such as `@project-version@`, TOC files missing from the zip, a required addon that is neither in the zip nor in the index, two repos that install the same folder. A zip guessed from asset names (no `release.json`) is left out when its TOCs are not for Forever or when it ships the folder of another repo's verified build. A required addon the index lacks is searched for by name and checked from the next run on. The findings are published as `review.json` next to the index. New ones (a new addon, a new release or a new kind of problem) open a GitHub issue labelled `index-review`. A finding that is fine goes into [`review-ignore.txt`](review-ignore.txt) as `owner/repo code`.

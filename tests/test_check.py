@@ -111,6 +111,50 @@ class Check(unittest.TestCase):
         self.assertNotIn("requires", lone)                    # two repos ship Pack: left unresolved
         self.assertNotIn("_deps", core)
 
+    def test_discontinued_marks(self):
+        import os, tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("# c\no/Ding f/Polestar   # CurseForge page\no/Mod f/Pack#Wheel\n-o/Fine\no/Gone\n")
+        try:
+            ended = b.load_ended(f.name)
+        finally:
+            os.remove(f.name)
+        self.assertEqual(ended, {"o/ding": "f/Polestar", "o/mod": "f/Pack#Wheel", "o/fine": False, "o/gone": ""})
+        e = {"repo": "o/Ding", "name": "Ding!", "summary": "Guides"}
+        b.mark_ended(e, ended, False, {}, "")
+        self.assertEqual((e["discontinued"], e["successor"]), ("listed", "f/Polestar"))
+        e = {"repo": "o/Old", "name": "Old", "summary": ""}
+        b.mark_ended(e, ended, True, {}, "# Old\n\nThis addon is no longer maintained, use https://github.com/n/New\n")
+        self.assertEqual((e["discontinued"], e["successor"]), ("archived", "n/New"))
+        self.assertIn("no longer maintained", e["discontinued_note"])
+        e = {"repo": "o/Fine", "name": "Fine", "summary": "Fine is deprecated", "discontinued": "notice"}
+        b.mark_ended(e, ended, False, {}, "")    # "-o/Fine" wins over the rule
+        self.assertNotIn("discontinued", e)
+        e = {"repo": "o/Kept", "name": "Kept", "summary": "", "discontinued": "archived"}
+        b.mark_ended(e, ended)                   # --tags-only keeps an earlier automatic mark
+        self.assertEqual(e["discontinued"], "archived")
+
+    def test_successor_must_be_listed(self):
+        a = {"repo": "o/Ding", "successor": "F/Polestar"}
+        b2 = {"repo": "o/X", "successor": "z/Missing"}
+        c = {"repo": "o/Y", "successor": "f/pack#wheel"}
+        listed = [a, b2, c, {"repo": "f/Polestar"}, {"repo": "f/Pack", "module": "Wheel"}]
+        b.link_successors(listed)
+        self.assertEqual(a["successor"], "f/polestar")
+        self.assertNotIn("successor", b2)
+        self.assertEqual(c["successor"], "f/pack#wheel")
+
+    def test_archived_repo_stays_listed(self):
+        rj = {"releases": [{"filename": "Quester-2.0.zip", "version": "2.0", "metadata": [{"flavor": "forever"}]}]}
+        latest = release("v2.0", "Quester-2.0.zip", "release.json")
+        node = {"nameWithOwner": "o/Quester", "name": "Quester", "description": "Quests", "isArchived": True,
+                "isFork": False, "owner": {"login": "o"}, "latestRelease": latest, "releases": {"nodes": [latest]}}
+        gh = FakeGitHub({"https://github.com/o/Quester/releases/download/v2.0/release.json": json.dumps(rj)})
+        c = b.Candidate("o/Quester")
+        c.reasons.add("topic")
+        e, = b.check(gh, c, node, {})
+        self.assertEqual(e["discontinued"], "archived")
+
     def test_no_forever_build(self):
         node = {"nameWithOwner": "o/X", "name": "X", "isArchived": False, "isFork": False,
                 "latestRelease": release("1", "X-classic.zip"), "releases": {"nodes": []}}

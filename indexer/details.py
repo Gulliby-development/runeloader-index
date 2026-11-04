@@ -124,3 +124,48 @@ def category(x_category, topics, text=""):
             if any(m in tokens or (len(m) > 4 and m in source) for m in marks):
                 return key
     return None
+
+
+# An author's own notice that the addon is over. Only short, clear spots are read (the repo
+# description, the TOC notes, the README's intro), and only sentences whose subject is the addon
+# itself: "Postal is no longer maintained" in another addon's README or "no longer needed" must not count.
+_STATE = (r"(?:is\s+|has\s+been\s+|was\s+|will\s+be\s+)?(?:now\s+|officially\s+)?(?:"
+          r"discontinued|deprecated|abandoned|retired|unmaintained|end[\s-]of[\s-]life|"
+          r"no\s+longer\s+(?:being\s+|actively\s+)?(?:maintained|supported|developed|updated|worked\s+on)|"
+          r"not\s+(?:actively\s+|being\s+)?maintained(?:\s+any\s*more)?)(?![\w-])")
+_MOVED = (r"(?:(?:is|has\s+been|was)\s+(?:replaced|superseded)\s+by|(?:has\s+)?moved\s+to|"
+          r"(?:has\s+been|was)\s+(?:merged|ported)\s+into)")
+_MARK = re.compile(r"^\W*(?:discontinued|deprecated|abandoned|archived|unmaintained|no\s+longer\s+maintained|"
+                   r"end[\s-]of[\s-]life)(?![\w-])", re.IGNORECASE)
+_GH_REPO = re.compile(r"github\.com/([\w.-]+/[\w.-]+?)(?:\.git)?(?=[/#?)\]\s\"'>]|$)", re.IGNORECASE)
+
+
+def readme_intro(text, limit=1500):
+    """The README before its second heading: the place where authors put an end-of-life notice."""
+    out, headings = [], 0
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        if re.match(r"^\s{0,3}#{1,6}\s", line) or re.match(r"^\s*<h\d", line, re.IGNORECASE):
+            headings += 1
+            if headings > 1:
+                break
+        out.append(line)
+    return "\n".join(out)[:limit]
+
+
+def ended_notice(name, *texts):
+    """(sentence, successor repo or None) when the author says the addon is discontinued, else None."""
+    subject = r"(?<![\w-])(?:(?:this|the)\s+(?:addon|add-on|project|repo|repository|mod|plugin|fork)|it"
+    words = re.sub(r"[^\w\s-]", " ", name or "").split()
+    if words:
+        subject += "|" + r"[\W_]*".join(re.escape(w) for w in words)
+    subject += r")\W{0,3}\s+"
+    ended = re.compile(subject + "(?:" + _STATE + "|" + _MOVED + ")", re.IGNORECASE)
+    for text in texts:
+        if not text:
+            continue
+        parts = re.split(r"(?<=[.!?])\s+|\n\s*\n", text)
+        for i, part in enumerate(parts):
+            if ended.search(part) or _MARK.search(part.strip(" >*_#\t\n")):
+                links = [m.group(1) for m in _GH_REPO.finditer(" ".join(parts[i:i + 2]))]
+                return plain_text(re.sub(r"^[\s>]+", "", part), limit=300), (links[0] if links else None)
+    return None

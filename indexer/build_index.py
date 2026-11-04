@@ -308,20 +308,22 @@ def entry_key(e):
     return e["repo"].lower() + ("#" + e["module"].lower() if e.get("module") else "")
 
 
-def check(gh, c, node, cache, gamepad=None):
+def check(gh, c, node, cache, gamepad=None, ended=None):
     """Return the index entries of a candidate: [] when it has no Forever build, one entry for an
     ordinary repo, one per module (core first) for a repo that releases modules separately.
 
     gamepad is the hand-made list from gamepad.txt: {repo_lower: True (tag) or False (never tag)}.
+    ended is the hand-made list from discontinued.txt (see load_ended). An archived repo stays
+    listed, marked discontinued: players who installed it should learn that it is over.
     """
-    if node.get("isArchived") or (node.get("isFork") and "seed" not in c.reasons):
+    if node.get("isFork") and "seed" not in c.reasons:
         return []
     rel = node.get("latestRelease")
     if not rel:
         return []
     history = (node.get("releases") or {}).get("nodes") or []
     if forever.module_groups(history + [rel], node["name"]) is None:
-        e = describe(gh, c, node, cache, gamepad, rel, history, None)
+        e = describe(gh, c, node, cache, gamepad, rel, history, None, ended)
         return [e] if e else []
     history = module_releases(gh, node["nameWithOwner"]) or history
     groups = forever.module_groups(history, node["name"]) or {}
@@ -329,13 +331,13 @@ def check(gh, c, node, cache, gamepad=None):
     for g in sorted(groups, key=lambda k: (k != "", k)):
         name, r = groups[g]
         own = [h for h in history if forever.release_group(h.get("tagName"), node["name"]).lower() == g]
-        e = describe(gh, c, node, cache, gamepad, r, own, name or None)
+        e = describe(gh, c, node, cache, gamepad, r, own, name or None, ended)
         if e:
             out.append(e)
     return out
 
 
-def describe(gh, c, node, cache, gamepad, rel, history, module):
+def describe(gh, c, node, cache, gamepad, rel, history, module, ended=None):
     """One index entry for release rel (and its own history), or None without a Forever build."""
     entry = forever_build(gh, rel, c, node, cache)
     if entry is None:
@@ -385,6 +387,7 @@ def describe(gh, c, node, cache, gamepad, rel, history, module):
     if cat:
         entry["category"] = cat
     tag(entry, gamepad, fields, readme)
+    mark_ended(entry, ended, node.get("isArchived"), fields, readme, node.get("description") or "")
     return entry
 
 
@@ -402,6 +405,52 @@ def tag(entry, gamepad, fields=None, readme=""):
         entry["tags"] = tags
     else:
         entry.pop("tags", None)
+
+
+def mark_ended(entry, ended, archived=False, fields=None, readme="", about=""):
+    """Set discontinued (archived|listed|notice), discontinued_note and successor on an entry.
+
+    The hand-made list wins: "-owner/repo" never marks an addon. Without fields and readme (the
+    --tags-only run) an earlier automatic mark is kept.
+    """
+    listed = (ended or {}).get(entry["repo"].lower())
+    if listed is False:
+        for k in ("discontinued", "discontinued_note", "successor"):
+            entry.pop(k, None)
+        return
+    if fields is None and listed is None:
+        return
+    found, why = None, None
+    if listed is not None:
+        why, found = "listed", (None, listed or None)
+    elif archived:
+        why, found = "archived", (None, None)
+    notice = details.ended_notice(entry.get("name", ""), about, entry.get("summary", ""), (fields or {}).get("notes", ""),
+                                  details.readme_intro(readme))
+    if notice:
+        why = why or "notice"
+        found = (notice[0], (found or (None, None))[1] or notice[1])
+    for k in ("discontinued", "discontinued_note", "successor"):
+        entry.pop(k, None)
+    if why:
+        entry["discontinued"] = why
+        if found[0]:
+            entry["discontinued_note"] = found[0]
+        if found[1] and found[1].lower() != entry["repo"].lower():
+            entry["successor"] = found[1]
+
+
+def link_successors(addons):
+    """Keep a successor only when the index lists it, written as its entry key."""
+    keys = {entry_key(e) for e in addons}
+    for e in addons:
+        s = (e.get("successor") or "").lower()
+        if s and s not in keys and s.split("#")[0] in keys:
+            s = s.split("#")[0]
+        if s in keys and s.split("#")[0] != e["repo"].lower():
+            e["successor"] = s
+        else:
+            e.pop("successor", None)
 
 
 def module_releases(gh, repo):
@@ -553,6 +602,7 @@ def main(argv=None):
     p.add_argument("--out", default="site")
     p.add_argument("--seeds", default="seeds.txt")
     p.add_argument("--gamepad", default="gamepad.txt")
+    p.add_argument("--discontinued", default="discontinued.txt")
     p.add_argument("--max-checks", type=int, default=int(os.environ.get("MAX_CHECKS", "5000")),
                    help="limit for new candidates; addons already listed are always checked")
     p.add_argument("--search-minutes", type=int, default=int(os.environ.get("SEARCH_MINUTES", "45")),
@@ -574,8 +624,11 @@ def main(argv=None):
 
     if args.tags_only:
         gamepad = load_gamepad(args.gamepad)
+        ended = load_ended(args.discontinued)
         for e in old.get("addons") or []:
             tag(e, gamepad)
+            mark_ended(e, ended)
+        link_successors(old.get("addons") or [])
         write(index_path, old)
         log("tags: %d of %d addons tagged gamepad"
             % (sum("gamepad" in e.get("tags", []) for e in old.get("addons") or []), len(old.get("addons") or [])))
@@ -603,6 +656,8 @@ def main(argv=None):
     seeds = [s for s in seeds if "/" in s]
     gamepad = load_gamepad(args.gamepad)
     seeds += [r for r, tag in gamepad.items() if tag]
+    ended = load_ended(args.discontinued)
+    seeds += [r for r, succ in ended.items() if succ is not False] + [s.split("#")[0] for s in ended.values() if s]
 
     gh.search_deadline = time.time() + args.search_minutes * 60
     found = discover(gh, seeds, state.get("candidates"))
@@ -624,7 +679,7 @@ def main(argv=None):
         got = []
         if node:
             try:
-                got = check(gh, c, node, cache, gamepad)
+                got = check(gh, c, node, cache, gamepad, ended)
             except Exception as ex:  # one bad repo must not stop the run
                 errors += 1
                 log("error %s: %s" % (c.repo, ex))
@@ -661,6 +716,7 @@ def main(argv=None):
     find_dependencies(gh, review.unresolved_deps(addons, zips), found)
     state["candidates"] = remember(found)
     link_requires(addons)
+    link_successors(addons)
     zips_live = {e["url"] for e in addons}
     state["zips"] = {u: v for u, v in zips.items() if u in zips_live}
     used = {e["icon"] for e in addons if e.get("icon")}
@@ -697,6 +753,21 @@ def load_gamepad(path):
             line = line.split("#")[0].strip()
             if "/" in line:
                 out[line.lstrip("-").strip().lower()] = not line.startswith("-")
+    return out
+
+
+def load_ended(path):
+    """discontinued.txt: "owner/repo [successor]" marks an addon discontinued (successor or "" ),
+    "-owner/repo" never marks it (False)."""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            parts = re.split(r"\s#", " " + line)[0].split()   # "#" inside owner/repo#Module is not a comment
+            if parts and "/" in parts[0]:
+                repo = parts[0].lstrip("-").lower()
+                out[repo] = False if parts[0].startswith("-") else (parts[1] if len(parts) > 1 and "/" in parts[1] else "")
     return out
 
 

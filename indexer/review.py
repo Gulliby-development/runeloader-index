@@ -17,7 +17,7 @@ from . import forever
 # code -> what it means, shown in the issue. A new check gets a code here and a test.
 CHECKS = {
     "no_addon": "the app finds no addon folder with a .toc in the zip (an entry whose zip has no .toc at all is left out of the index)",
-    "no_forever_toc": "no _Forever or _Camelot TOC and the Interface is not 160xx, so the game may call it out of date",
+    "no_forever_toc": "no folder has a _Forever or _Camelot TOC or Interface 160xx, so the game may call it out of date",
     "placeholder": "unreplaced packager tokens such as @project-version@ in the TOC (zipped without the packager)",
     "missing_files": "the TOC lists files that are not in the zip",
     "missing_dependency": "a required addon is neither in the zip nor in the index",
@@ -106,7 +106,7 @@ def zip_checks(entries, read):
     roots = find_roots([e[0] for e in entries.values()])
     if not roots:
         return {"roots": [], "problems": [["no_addon", ""]], "deps": []}
-    problems, deps, no_forever, tokens, missing = [], [], [], set(), []
+    problems, deps, no_forever, tokens, missing, checked = [], [], [], set(), [], 0
     folders = {f.lower() for f in roots.values()}
     for prefix, folder in list(roots.items())[:MAX_ROOTS]:
         name, suffix = _pick_toc(entries, prefix, folder)
@@ -116,6 +116,7 @@ def zip_checks(entries, read):
             suffix = ""
         if not name:
             continue
+        checked += 1
         text = (read(name) or b"").decode("utf-8", "replace")
         fields = forever.parse_toc(text)
         if suffix not in ("_Forever", "_Camelot") and not forever.interface_is_forever(fields.get("interface")):
@@ -130,7 +131,7 @@ def zip_checks(entries, read):
                 missing.append(path)
         deps += [d for d in forever.toc_deps(fields)
                  if d.lower() not in folders and not d.lower().startswith("blizzard_") and d not in deps]
-    if no_forever:
+    if no_forever and len(no_forever) == checked:   # packs often ship a few retail-only folders on purpose
         problems.append(["no_forever_toc", ", ".join(no_forever[:5])])
     if tokens:
         problems.append(["placeholder", " ".join(sorted(tokens)[:5])])

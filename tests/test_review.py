@@ -32,6 +32,10 @@ class ZipChecks(unittest.TestCase):
         e, r = zip_of({"Map/Map_Mainline.toc": "## Interface: 160010\nMap.lua\n", "Map/Map.lua": ""})
         self.assertEqual(review.zip_checks(e, r)["problems"], [])
 
+    def test_pack_with_some_retail_folders_is_fine(self):
+        e, r = zip_of({"Boss/Boss_Forever.toc": "## Interface: 16001\n", "Boss_Raid/Boss_Raid.toc": "## Interface: 120100\n"})
+        self.assertEqual(review.zip_checks(e, r)["problems"], [])
+
     def test_missing_files_skip_comments_and_variables(self):
         e, r = zip_of({"Q/Q_Forever.toc": "#@no-lib-strip@\nLibs\\Lib.xml\n#@end-no-lib-strip@\nQ.lua\nGone.lua\n"
                                           "Core_[Family].lua\n", "Q/Q.lua": ""})

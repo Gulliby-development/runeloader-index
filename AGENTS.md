@@ -20,6 +20,7 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
 - Each run adds to the published index and never starts over. Every addon already listed is checked first and is outside the `MAX_CHECKS` limit, which applies to new candidates only. A listed addon whose GraphQL batch failed, or whose check raised an error, keeps its entry from the last run. It leaves the index only when GitHub answers and its latest releases have no Forever build, or the repository is gone.
 - Tags (`tags` in `index.json`) mark addons across categories; a category stays one value. A new tag gets its rule in `indexer/details.py` (clear signals only: topics, TOC, name, summary), a hand-made list file like `gamepad.txt`, a test in `tests/test_details.py`, and the matching key in the app.
 - The job refuses to publish when the index shrinks below 70% of the previous one.
+- **Review.** `indexer/review.py` checks every release zip for install problems (cached with the zip in `state.json`), writes `review.json` to `gh-pages`, and the job opens an `index-review` issue with the findings that are new for that release. A new check gets a code in `review.CHECKS` and a test in `tests/test_review.py`, and stays cheap: it uses the zip's file list and its TOCs only. Work an `index-review` issue by fixing the indexer or the app, or by adding `owner/repo code` to `review-ignore.txt` when the finding is fine, then close it.
 - A long full run can be made on a local machine and published to `gh-pages` by hand (see `README.md`); the daily job then continues from it.
 
 ## index.json
@@ -27,6 +28,8 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
 Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `tags` (a list; today only `gamepad`), `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`), `module` (the module name, on an entry for one module of a module repo) and `requires` (entry keys this addon needs, such as `owner/repo` or `owner/repo#Module`, linked from the TOC `Dependencies`/`RequiredDeps` by folder).
 
 An entry is keyed by `repo`, plus `#<module>` when it has `module`. A release zip with no `.toc` file at all is not listed, since nothing in it can be installed.
+
+`review.json` (not read by the app): `generated`, `checks` (code -> meaning), `addons` (entry key -> `version`, `url`, `problems` as `[code, detail]`, `since`).
 
 The app tolerates missing keys. Add a key freely, but never rename or remove one without a new `schema` number and the matching change in the app.
 
@@ -67,6 +70,8 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 - `indexer/remotezip.py`: reads the file list and single files of a release zip with HTTP range requests.
 - `indexer/images.py`: BLP2 and TGA decoding, scaling, PNG output (standard library only).
 - `indexer/icons.py`: addon folders and the logo from the release zip.
+- `indexer/review.py`: install checks on each release zip, `review.json` and the review issue text.
+- `review-ignore.txt`: review findings that were looked at and are fine.
 - `seeds.txt`: repositories always checked.
 - `gamepad.txt`: gamepad and handheld addons. Each one is always checked and tagged `gamepad`; `-owner/repo` never is.
 - `tests/`: unit tests, including a full `check()` against a fake GitHub.

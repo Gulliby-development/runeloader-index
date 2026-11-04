@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from . import details, forever, icons
+from . import details, forever, icons, review
 
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
@@ -462,18 +462,21 @@ def toc_meta(gh, node, c, entry):
 
 
 def zip_meta(entry, cache, out_dir):
-    """Folders and logo from the release zip; each zip URL is read once and remembered."""
+    """Folders, logo and install checks from the release zip; each zip URL is read once and remembered.
+
+    Returns False when the zip could not be read.
+    """
     url = entry.get("url")
     if not url:
-        return
+        return True
     meta = cache.get(url)
-    if meta is None or "tocs" not in meta or (meta.get("icon") and not os.path.exists(os.path.join(out_dir, meta["icon"]))):
+    if meta is None or "tocs" not in meta or "checks" not in meta or (meta.get("icon") and not os.path.exists(os.path.join(out_dir, meta["icon"]))):
         try:
             name = entry["repo"] + ("#" + entry["module"] if entry.get("module") else "")
             meta = icons.from_zip(url, name, entry.get("folders") or [], out_dir, log=log)
         except Exception as ex:   # an odd zip must not stop the run; try again tomorrow
             log("zip %s: %s" % (entry["repo"], ex))
-            return
+            return False
         cache[url] = meta
     if meta.get("folders"):
         entry["folders"] = meta["folders"]
@@ -483,6 +486,22 @@ def zip_meta(entry, cache, out_dir):
         entry["name"] = meta["title"]
     entry["_deps"] = meta.get("deps") or []
     entry["_tocs"] = meta.get("tocs")
+    return True
+
+
+def write_review(out_dir, addons, zips, report_path, ignore_path, zip_errors=(), left_out=()):
+    """review.json next to the index, and a Markdown report of the new findings for the daily issue."""
+    path = os.path.join(out_dir, "review.json")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    data, new = review.build(addons, zips, zip_errors, review.load_ignore(ignore_path), load(path, {}), today, left_out)
+    write(path, data)
+    log("review: %d entries flagged, %d with new findings" % (len(data["addons"]), len(new)))
+    if report_path:
+        if new:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(review.report(new, len(data["addons"])))
+        elif os.path.exists(report_path):
+            os.remove(report_path)
 
 
 def link_requires(addons):
@@ -520,6 +539,10 @@ def main(argv=None):
     p.add_argument("--min-ratio", type=float, default=0.7, help="refuse to publish if the index shrinks below this share")
     p.add_argument("--tags-only", action="store_true",
                    help="only update the tags of the addons in the existing index.json, without GitHub calls")
+    p.add_argument("--review-only", action="store_true",
+                   help="only check the release zips of the existing index.json and write review.json, without a token")
+    p.add_argument("--report", default="", help="write the new review findings here as Markdown (for the daily issue)")
+    p.add_argument("--review-ignore", default="review-ignore.txt")
     args = p.parse_args(argv)
 
     os.makedirs(args.out, exist_ok=True)
@@ -535,6 +558,19 @@ def main(argv=None):
         write(index_path, old)
         log("tags: %d of %d addons tagged gamepad"
             % (sum("gamepad" in e.get("tags", []) for e in old.get("addons") or []), len(old.get("addons") or [])))
+        return 0
+
+    if args.review_only:
+        addons = old.get("addons") or []
+        zips = state.setdefault("zips", {})
+        errors = []
+        for i, e in enumerate(addons):
+            if not zip_meta(dict(e), zips, args.out):
+                errors.append(review.entry_key(e))
+            if i % 100 == 0:
+                log("zips checked: %d/%d" % (i, len(addons)))
+        write_review(args.out, addons, zips, args.report, args.review_ignore, errors)
+        write(state_path, state)
         return 0
 
     token = os.environ.get("GITHUB_TOKEN", "")
@@ -582,8 +618,10 @@ def main(argv=None):
                 addons.append(e)
 
     zips = state.setdefault("zips", {})
+    zip_errors = []
     for i, e in enumerate(addons):
-        zip_meta(e, zips, args.out)
+        if not zip_meta(e, zips, args.out):
+            zip_errors.append(review.entry_key(e))
         if i % 100 == 0:
             log("zips read: %d/%d" % (i, len(addons)))
     no_addon = [e for e in addons if e.get("_tocs") == 0]
@@ -607,6 +645,7 @@ def main(argv=None):
         log("index shrank from %d to %d; not publishing" % (old_n, len(addons)))
         return 2
 
+    write_review(args.out, addons, zips, args.report, args.review_ignore, zip_errors, no_addon)
     out = {"schema": 1, "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "count": len(addons), "addons": addons}
     write(index_path, out)

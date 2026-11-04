@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write      # the review issue after each run
 
 concurrency:
   group: index
@@ -39,7 +40,7 @@ jobs:
         env:
           # A personal token (secret INDEX_TOKEN, public read only) gives more search and API quota.
           GITHUB_TOKEN: ${{ secrets.INDEX_TOKEN || github.token }}
-        run: python -m indexer.build_index --out site
+        run: python -m indexer.build_index --out site --report review-report.md
 
       - name: Publish to gh-pages
         run: |
@@ -47,7 +48,16 @@ jobs:
           git init -q -b gh-pages 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.json state.json icons 2>/dev/null || git add index.json state.json
+          git add index.json state.json review.json icons 2>/dev/null || git add index.json state.json review.json
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -q -m "Index $(date -u +%Y-%m-%d)"
           git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+
+      - name: Open a review issue for new findings
+        if: hashFiles('review-report.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create index-review --color D93F0B --description "Addons the nightly run flagged for a look" --force
+          gh issue create --label index-review --body-file review-report.md \
+            --title "Index review $(date -u +%Y-%m-%d): $(grep -c '^- \[ \]' review-report.md) addons to check"

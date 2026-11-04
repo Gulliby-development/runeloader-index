@@ -1,0 +1,2 @@
+# Findings of the nightly review that were looked at and are fine.
+# One per line: "owner/repo code" (codes are listed in indexer/review.py) or "owner/repo *" for all.

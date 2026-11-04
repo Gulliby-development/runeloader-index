@@ -3,7 +3,7 @@
 import os
 import re
 
-from . import forever, images, remotezip
+from . import forever, images, remotezip, review
 
 TOC_CHAIN = ("_Forever", "_Camelot", "_Mainline", "")
 SIDE = 128
@@ -41,13 +41,24 @@ def from_zip(url, repo, preferred, out_dir, log=print):
 
     repo names the icon file ("owner/Repo" or "owner/Repo#Module"). tocs counts the .toc files:
     0 means the app's installer would find no addon in the zip. deps are the folders the zip's
-    addons require that it does not ship; title is the TOC title of its main folder.
+    addons require that it does not ship; title is the TOC title of its main folder; checks are the
+    install checks of review.zip_checks.
     """
     z = remotezip.RemoteZip(url)
     names = z.names()
     folders = remotezip.top_folders(names)
+    read = {}
+
+    def small(name):
+        if name not in read:
+            try:
+                read[name] = z.read(name, max_size=256 * 1024)
+            except remotezip.RemoteZipError:
+                read[name] = None
+        return read[name]
+
     result = {"folders": folders, "icon": None, "tocs": sum(n.lower().endswith(".toc") for n in names),
-              "deps": [], "title": ""}
+              "deps": [], "title": "", "checks": review.zip_checks(z.entries, small)}
     order = [f for f in preferred if f in folders] + [f for f in folders if f not in preferred]
     repo_name = repo.split("/", 1)[1].split("#")[0].lower()
     order.sort(key=lambda f: (f not in preferred, f.lower() != repo_name, len(f)))
@@ -56,7 +67,7 @@ def from_zip(url, repo, preferred, out_dir, log=print):
     for folder in order[:12]:
         toc = _toc_for(z, folder)
         if toc:
-            tocs[folder] = forever.parse_toc(z.read(toc, max_size=256 * 1024).decode("utf-8", "replace"))
+            tocs[folder] = forever.parse_toc((small(toc) or b"").decode("utf-8", "replace"))
     for folder, fields in tocs.items():
         for d in forever.toc_deps(fields):
             if d.lower() not in own and d not in result["deps"]:

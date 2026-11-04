@@ -24,6 +24,16 @@ To retag the published index after you change `gamepad.txt`, without a full run:
 python -m indexer.build_index --out site --tags-only
 ```
 
+## Review of risky addons
+
+Each run also checks the release zip of every listed addon for things that can break its install or load: no addon folder the app can find, no Forever TOC or `## Interface: 160xx`, unreplaced packager tokens such as `@project-version@`, TOC files missing from the zip, a required addon that is neither in the zip nor in the index, two repos that install the same folder, a guessed build. The findings are published as `review.json` next to the index. New ones (a new addon, a new release or a new kind of problem) open a GitHub issue labelled `index-review`. A finding that is fine goes into [`review-ignore.txt`](review-ignore.txt) as `owner/repo code`.
+
+To check the published index again without a token (for example after you edit `review-ignore.txt`):
+
+```sh
+python -m indexer.build_index --out site --review-only --report review-report.md
+```
+
 ## Addon authors
 
 Your addon shows up on its own if you publish GitHub releases with [BigWigs packager](https://github.com/BigWigsMods/packager) and ship a `YourAddon_Forever.toc`. Otherwise add `owner/repo` to `seeds.txt` in a pull request. For a gamepad addon, add it to `gamepad.txt` instead.

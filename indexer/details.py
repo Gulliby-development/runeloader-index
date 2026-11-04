@@ -50,6 +50,22 @@ def mentions_gamepad(text):
     return bool(_GAMEPAD_WORDS.search(_NOT_GAMEPAD.sub(" ", text or "")))
 
 
+_BLOCK_START = re.compile(r"^[ \t]*([-*+•][ \t]|\d+[.)][ \t]|#|\||```|---|\*\*\*|___|=+[ \t]*$)")
+
+
+def _join_wrapped(t):
+    """Join the lines an author wrapped by hand inside a paragraph or list item, as Markdown does."""
+    out = []
+    for line in t.split("\n"):
+        prev = out[-1] if out else ""
+        if (line.strip() and prev.strip() and not _BLOCK_START.match(line) and not prev.lstrip().startswith(("#", "|"))
+                and not prev.endswith("  ") and not prev.endswith("\\")):
+            out[-1] = prev.rstrip() + " " + line.strip()
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def plain_text(md, limit=4000):
     """Markdown or simple HTML to readable plain text: keeps headings, lists and paragraphs."""
     if not md:
@@ -59,18 +75,20 @@ def plain_text(md, limit=4000):
     t = re.sub(r"```.*?```", "", t, flags=re.DOTALL)
     t = _IMG_MD.sub("", t)
     t = re.sub(r"<img[^>]*>", "", t, flags=re.IGNORECASE)
-    t = re.sub(r"<br\s*/?>", "\n", t, flags=re.IGNORECASE)
-    t = re.sub(r"</?(p|div|h\d|li|ul|ol|tr|table)[^>]*>", "\n", t, flags=re.IGNORECASE)
+    t = re.sub(r"<br\s*/?>", "  \n", t, flags=re.IGNORECASE)   # a hard break: never joined
+    t = re.sub(r"</?(p|div|h\d|li|ul|ol|tr|table|details|summary|blockquote)[^>]*>", "\n\n", t, flags=re.IGNORECASE)
     t = re.sub(r"<[^>]+>", "", t)
     t = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)          # [text](url) -> text
     t = re.sub(r"\[([^\]]*)\]\[[^\]]*\]", r"\1", t)         # [text][ref] -> text
     t = re.sub(r"^\s*\[[^\]]+\]:\s*\S+.*$", "", t, flags=re.MULTILINE)
-    t = re.sub(r"^\s{0,3}#{1,6}\s*(.*?)\s*#*\s*$", r"\1", t, flags=re.MULTILINE)
-    t = re.sub(r"^\s*[-*+]\s+", "• ", t, flags=re.MULTILINE)
+    t = re.sub(r"^[ \t]*>[ \t]?", "", t, flags=re.MULTILINE)   # blockquote marks
+    t = _join_wrapped(t)
+    t = re.sub(r"^[ \t]{0,3}#{1,6}[ \t]*(.*?)[ \t]*#*[ \t]*$", r"\1", t, flags=re.MULTILINE)
+    t = re.sub(r"^[ \t]*[-*+][ \t]+", "• ", t, flags=re.MULTILINE)
     t = re.sub(r"(\*\*|__)(.*?)\1", r"\2", t)
     t = re.sub(r"(?<![\w*])[*_]([^*_\n]+)[*_](?![\w*])", r"\1", t)
     t = re.sub(r"`([^`]*)`", r"\1", t)
-    t = re.sub(r"^\s*(---+|\*\*\*+|___+)\s*$", "", t, flags=re.MULTILINE)
+    t = re.sub(r"^[ \t]*(---+|\*\*\*+|___+)[ \t]*$", "", t, flags=re.MULTILINE)
     t = t.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
     t = re.sub(r"[ \t]+", " ", t)
     t = re.sub(r" *\n *", "\n", t)

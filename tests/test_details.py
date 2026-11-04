@@ -85,3 +85,14 @@ class Ended(unittest.TestCase):
 
     def test_readme_intro_stops_at_the_second_heading(self):
         self.assertEqual(details.readme_intro("# A\n\nDeprecated.\n\n## Install\n\nno longer maintained"), "# A\n\nDeprecated.\n")
+
+
+class Wraps(unittest.TestCase):
+    def test_hand_wrapped_lines_join_like_markdown(self):
+        md = "It is **with a\ngamepad**.\n\n> Version 1.8, released\n> during the beta.\n\n- one\n  two\n- three\n\nHard  \nbreak"
+        self.assertEqual(details.plain_text(md),
+                         "It is with a gamepad.\n\nVersion 1.8, released during the beta.\n\n• one two\n• three\n\nHard\nbreak")
+
+    def test_headings_keep_their_own_line(self):
+        self.assertEqual(details.plain_text("# Changelog\n\n## v1.8.1\n\nNothing"), "Changelog\n\nv1.8.1\n\nNothing")
+        self.assertEqual(details.plain_text("<details><summary>Changelog</summary>v1.8.1"), "Changelog\n\nv1.8.1")

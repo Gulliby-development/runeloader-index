@@ -148,10 +148,13 @@ def doubtful(addons, zip_info):
     Sets "_left" (a CHECKS code) and "_left_detail" on each returned entry.
     """
     verified = {}
+    norm = lambda n: re.sub(r"[^a-z0-9]", "", n.lower())
     for a in addons:
         if a.get("verified"):
+            # only the repo named like the folder is its original; a bundle of many addons is not
             for f in a.get("folders") or []:
-                verified.setdefault(f.lower(), a["repo"])
+                if norm(f) == norm(a["repo"].split("/", 1)[1]):
+                    verified.setdefault(f.lower(), a["repo"])
     out = []
     for a in addons:
         if a.get("verified"):

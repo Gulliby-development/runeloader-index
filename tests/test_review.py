@@ -100,7 +100,8 @@ class Build(unittest.TestCase):
         db = self.addon("o/AuctionDB", "u3", ["AuctionDB"])
         repack = self.addon("x/Repack", "u4", ["AuctionDB"], verified=False)
         zips = {"u2": {"checks": {"problems": [["no_forever_toc", "Retail (Interface 120100)"]], "deps": ["Lib", "Good"]}}}
-        left = review.doubtful([ok, retail, db, repack], zips)
+        bundle = self.addon("x/kolossus", "u5", ["Good", "AuctionDB"])
+        left = review.doubtful([ok, retail, db, repack, bundle], zips)
         self.assertEqual([(a["repo"], a["_left"]) for a in left], [("o/Retail", "not_forever"), ("x/Repack", "repack")])
         data, _ = review.build([ok, db], zips, left_out=left)
         self.assertEqual(data["addons"]["x/Repack"]["problems"][0][0], "repack")

@@ -57,3 +57,9 @@ SaffronG/ForeverChronicler no_forever_toc
 # Cosmetic or too large to read.
 Ninjaskurk/forever-mouse-tooltip placeholder      # @project-version@ in the TOC Version only
 Ironship/WordHunterWoW-Voice-DE zip_error         # a 1 GB voice pack with a central directory over 8 MB
+
+# A bundle of other addons, and the addons it bundles.
+llpowwowll/wowforeverkolossus shared_folder
+Nevcairiel/HandyNotes shared_folder
+cjber/shortest-path-forever shared_folder
+Questie/QuestieDB shared_folder              # Questie ships QuestieDB too

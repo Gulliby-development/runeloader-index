@@ -153,34 +153,64 @@ def source_ids(fields):
 _MODULE_TAG = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_]*)-v?\d")
 
 
+# Tag prefixes that name a kind of release, not a module.
+NOT_MODULES = ("release", "build", "beta", "alpha", "rc", "nightly", "version", "ver", "dev", "test",
+               "pre", "prerelease", "hotfix", "patch", "snapshot", "stable", "latest", "tag", "forever")
+
+
 def module_of(tag):
     """"Wheel-v0.10.0" -> "Wheel": the module a per-module release tag belongs to, else None."""
     m = _MODULE_TAG.match(tag or "")
-    return m.group("name") if m else None
+    return m.group("name") if m and m.group("name").lower() not in NOT_MODULES else None
 
 
 def is_core_module(name, repo_name):
     return (name or "").lower() in ("core", (repo_name or "").lower())
 
 
-def is_module_repo(releases):
-    """Two or more module names among the release tags; plain "v1.2" tags are ignored."""
-    return len({m.lower() for m in (module_of(r.get("tagName")) for r in releases) if m}) >= 2
+def release_group(tag, repo_name):
+    """The module a release belongs to: "" for the core (plain "v1.2", "Core-v1", "<Repo>-v1"), else its name."""
+    m = module_of(tag)
+    return "" if m is None or is_core_module(m, repo_name) else m
+
+
+def module_groups(releases, repo_name):
+    """For a repo that releases modules on their own tags, {group_lower: (name, newest published release)}
+    with "" for the core; None for an ordinary repo. Releases come newest first.
+
+    Same rule as the app's Modules.java.
+    """
+    groups = {release_group(r.get("tagName"), repo_name).lower() for r in releases}
+    if len(groups) < 2:
+        return None
+    out = {}
+    for r in releases:
+        if r.get("isPrerelease"):
+            continue
+        g = release_group(r.get("tagName"), repo_name)
+        out.setdefault(g.lower(), (g, r))
+    return out
 
 
 def core_release(releases, repo_name):
-    """For a repo that releases each module on its own tag (Core-v1, Wheel-v2, ...), the newest
-    published release of the core; None when the repo does not release that way.
+    """The newest published core release of a module repo, or None."""
+    g = module_groups(releases, repo_name) or {}
+    return g[""][1] if "" in g else None
 
-    Its latest release alone would install one module without the core it needs.
-    Same rule as the app's Sources.GitHub.
-    """
-    if not is_module_repo(releases):
-        return None
-    for r in releases:   # newest first
-        if not r.get("isPrerelease") and is_core_module(module_of(r.get("tagName")), repo_name):
-            return r
-    return None
+
+TOC_DEP_KEYS = ("dependencies", "requireddeps", "dep")
+
+
+def toc_deps(fields):
+    """Folder names a TOC requires (## Dependencies, ## RequiredDeps, ## Dep...)."""
+    out = []
+    for k, v in fields.items():
+        if k in TOC_DEP_KEYS or (k.startswith("dep") and not k.startswith("deprecated")):
+            for d in str(v).split(","):
+                d = d.strip()
+                if re.fullmatch(r"[A-Za-z0-9_.!-]+", d) and d not in out:
+                    out.append(d)
+    return out
 
 
 def version_from_file(name):

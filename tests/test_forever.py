@@ -104,6 +104,8 @@ class Modules(unittest.TestCase):
         self.assertEqual(forever.module_of("Core-v1.2"), "Core")
         self.assertIsNone(forever.module_of("v1.2"))
         self.assertIsNone(forever.module_of("bundle/v12.4.0"))
+        self.assertIsNone(forever.module_of("release-2026.10.14.1"))
+        self.assertIsNone(forever.module_of("build-53042bf"))
 
     def test_core_of_a_module_repo(self):
         rels = [self.rel("Camp-v0.1.0"), self.rel("Core-v0.9.0-beta1", pre=True), self.rel("Wheel-v0.10.0"),
@@ -111,6 +113,15 @@ class Modules(unittest.TestCase):
         self.assertEqual(forever.core_release(rels, "ImprovedForever")["tagName"], "Core-v0.8.2")
         named = [self.rel("Wheel-v2"), self.rel("ImprovedForever-v1")]
         self.assertEqual(forever.core_release(named, "ImprovedForever")["tagName"], "ImprovedForever-v1")
+
+    def test_groups(self):
+        g = forever.module_groups([self.rel("Wheel-v2"), self.rel("v1.1"), self.rel("Wheel-v1"), self.rel("data-v3", pre=True)], "X")
+        self.assertEqual({k: v[1]["tagName"] for k, v in g.items()}, {"wheel": "Wheel-v2", "": "v1.1"})
+        self.assertIsNone(forever.module_groups([self.rel("v2"), self.rel("bundle/v1")], "X"))
+
+    def test_toc_deps(self):
+        self.assertEqual(forever.toc_deps({"dependencies": "Pack, Lib_A", "requireddeps": "Pack", "depsextra": "B",
+                                           "optionaldeps": "C"}), ["Pack", "Lib_A", "B"])
 
     def test_plain_repos_are_not_module_repos(self):
         self.assertIsNone(forever.core_release([self.rel("Questie-v12"), self.rel("Questie-v11")], "Questie"))

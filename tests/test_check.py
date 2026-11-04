@@ -45,7 +45,7 @@ class Check(unittest.TestCase):
         c = b.Candidate("o/Quester")
         c.reasons.add("toc")
         c.toc_paths.append("Quester/Quester_Forever.toc")
-        e = b.check(gh, c, node, {})
+        e, = b.check(gh, c, node, {})
         self.assertEqual(e["version"], "2.0")
         self.assertTrue(e["verified"])
         self.assertEqual(e["summary"], "Quest helper")
@@ -76,37 +76,47 @@ class Check(unittest.TestCase):
         finally:
             os.remove(f.name)
 
-    def test_module_repo_lists_the_core(self):
-        def mod_rel(tag, name):
-            return release(tag, name)
-        camp = mod_rel("Camp-v0.1.0", "Pack_Camp-0.1.0.zip")
-        core = mod_rel("Core-v0.8.0", "Pack-0.8.0.zip")
-        node = {"nameWithOwner": "o/Pack", "name": "Pack", "description": "", "stargazerCount": 1,
+    def module_node(self, *rels):
+        return {"nameWithOwner": "o/Pack", "name": "Pack", "description": "", "stargazerCount": 1,
                 "isArchived": False, "isFork": False, "owner": {"login": "o"}, "defaultBranchRef": {"name": "main"},
-                "repositoryTopics": {"nodes": []}, "latestRelease": camp,
-                "releases": {"nodes": [camp, mod_rel("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip"), core]}}
+                "repositoryTopics": {"nodes": []}, "latestRelease": rels[0], "releases": {"nodes": list(rels)}}
+
+    def test_module_repo_lists_core_and_modules(self):
+        camp = release("Camp-v0.1.0", "Pack_Camp-0.1.0.zip")
+        node = self.module_node(camp, release("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip"),
+                                release("Core-v0.8.0", "Pack-0.8.0.zip"), release("Wheel-v0.1.0", "Pack_Wheel-0.1.0.zip"))
         c = b.Candidate("o/Pack")
         c.reasons.add("toc")
         c.toc_paths.append("Pack/Pack_Forever.toc")
-        e = b.check(FakeGitHub({}), c, node, {})
-        self.assertEqual(e["file"], "Pack-0.8.0.zip")
-        self.assertEqual(e["tag"], "Core-v0.8.0")
-        self.assertEqual([r["tag"] for r in e["releases"]], ["Core-v0.8.0"])
+        got = b.check(FakeGitHub({}), c, node, {})
+        self.assertEqual([(e.get("module"), e["file"]) for e in got],
+                         [(None, "Pack-0.8.0.zip"), ("Camp", "Pack_Camp-0.1.0.zip"), ("Wheel", "Pack_Wheel-0.2.0.zip")])
+        self.assertEqual([r["tag"] for r in got[2]["releases"]], ["Wheel-v0.2.0", "Wheel-v0.1.0"])
+        self.assertEqual([b.entry_key(e) for e in got], ["o/pack", "o/pack#camp", "o/pack#wheel"])
+        self.assertEqual(got[1]["name"], "Pack: Camp")
 
-    def test_module_repo_without_core_is_left_out(self):
-        camp = release("Camp-v0.1.0", "Pack_Camp-0.1.0.zip")
-        node = {"nameWithOwner": "o/Pack", "name": "Pack", "isArchived": False, "isFork": False,
-                "latestRelease": camp, "releases": {"nodes": [camp, release("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip")]}}
+    def test_module_repo_without_core_lists_each_module(self):
+        node = self.module_node(release("Camp-v0.1.0", "Pack_Camp-0.1.0.zip"), release("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip"))
         c = b.Candidate("o/Pack")
         c.reasons.add("toc")
-        self.assertIsNone(b.check(FakeGitHub({}), c, node, {}))
+        self.assertEqual([e["module"] for e in b.check(FakeGitHub({}), c, node, {})], ["Camp", "Wheel"])
+
+    def test_requires_links_entries_by_folder(self):
+        core = {"repo": "o/Pack", "folders": ["Pack"], "_deps": []}
+        wheel = {"repo": "o/Pack", "module": "Wheel", "folders": ["Pack_Wheel"], "_deps": ["Pack"]}
+        fork = {"repo": "x/Pack", "folders": ["Pack"], "_deps": []}
+        lone = {"repo": "z/Thing", "folders": ["Thing"], "_deps": ["Pack", "Missing"]}
+        b.link_requires([core, wheel, fork, lone])
+        self.assertEqual(wheel["requires"], ["o/pack"])        # its own repo wins over the fork
+        self.assertNotIn("requires", lone)                    # two repos ship Pack: left unresolved
+        self.assertNotIn("_deps", core)
 
     def test_no_forever_build(self):
         node = {"nameWithOwner": "o/X", "name": "X", "isArchived": False, "isFork": False,
                 "latestRelease": release("1", "X-classic.zip"), "releases": {"nodes": []}}
         c = b.Candidate("o/X")
         c.reasons.add("topic")
-        self.assertIsNone(b.check(FakeGitHub({}), c, node, {}))
+        self.assertEqual(b.check(FakeGitHub({}), c, node, {}), [])
 
 
 class Discover(unittest.TestCase):

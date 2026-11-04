@@ -11,7 +11,7 @@ MAX_PNG = 256 * 1024
 
 
 def icon_name(repo):
-    return "icons/%s.png" % re.sub(r"[^A-Za-z0-9._-]", "_", repo.replace("/", "__"))
+    return "icons/%s.png" % re.sub(r"[^A-Za-z0-9._-]", "_", repo.replace("/", "__").replace("#", "__"))
 
 
 def _toc_for(z, folder):
@@ -37,18 +37,36 @@ def _resolve(z, texture):
 
 
 def from_zip(url, repo, preferred, out_dir, log=print):
-    """Return {"folders": [...], "icon": "icons/...png" or None} for a release zip."""
+    """Return {"folders", "icon", "tocs", "deps", "title"} for a release zip.
+
+    repo names the icon file ("owner/Repo" or "owner/Repo#Module"). tocs counts the .toc files:
+    0 means the app's installer would find no addon in the zip. deps are the folders the zip's
+    addons require that it does not ship; title is the TOC title of its main folder.
+    """
     z = remotezip.RemoteZip(url)
-    folders = remotezip.top_folders(z.names())
-    result = {"folders": folders, "icon": None}
+    names = z.names()
+    folders = remotezip.top_folders(names)
+    result = {"folders": folders, "icon": None, "tocs": sum(n.lower().endswith(".toc") for n in names),
+              "deps": [], "title": ""}
     order = [f for f in preferred if f in folders] + [f for f in folders if f not in preferred]
-    repo_name = repo.split("/", 1)[1].lower()
+    repo_name = repo.split("/", 1)[1].split("#")[0].lower()
     order.sort(key=lambda f: (f not in preferred, f.lower() != repo_name, len(f)))
-    for folder in order[:6]:
+    own = {f.lower() for f in folders}
+    tocs = {}
+    for folder in order[:12]:
         toc = _toc_for(z, folder)
-        if not toc:
+        if toc:
+            tocs[folder] = forever.parse_toc(z.read(toc, max_size=256 * 1024).decode("utf-8", "replace"))
+    for folder, fields in tocs.items():
+        for d in forever.toc_deps(fields):
+            if d.lower() not in own and d not in result["deps"]:
+                result["deps"].append(d)
+        if not result["title"] and fields.get("title"):
+            result["title"] = forever.clean(fields["title"])[:120]
+    for folder in order[:6]:
+        fields = tocs.get(folder)
+        if not fields:
             continue
-        fields = forever.parse_toc(z.read(toc, max_size=256 * 1024).decode("utf-8", "replace"))
         texture = fields.get("icontexture")
         if not texture:
             continue

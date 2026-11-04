@@ -24,7 +24,9 @@ The Runeloader index is a daily list of World of Warcraft addons on GitHub whose
 
 ## index.json
 
-Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `tags` (a list; today only `gamepad`), `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`).
+Top level: `schema` (1), `generated`, `count`, `addons`. Each addon has `repo`, `name`, `author`, `summary`, `stars`, `topics`, `tag`, `version`, `file`, `url`, `size`, `downloads`, `released`, `prerelease`, `verified` and `found_by`. Optional: `tags` (a list; today only `gamepad`), `folders`, `ids` (`curseforge`, `wowinterface`, `wago`, copied from the TOC), `description`, `screenshots`, `category` (`quests|map|bags|combat|ui|tools`), `changelog`, `releases` (up to 5, newest first) and `icon` (a path such as `icons/<owner>__<repo>.png`, relative to `index.json`, made from the TOC `IconTexture`), `module` (the module name, on an entry for one module of a module repo) and `requires` (entry keys this addon needs, such as `owner/repo` or `owner/repo#Module`, linked from the TOC `Dependencies`/`RequiredDeps` by folder).
+
+An entry is keyed by `repo`, plus `#<module>` when it has `module`. A release zip with no `.toc` file at all is not listed, since nothing in it can be installed.
 
 The app tolerates missing keys. Add a key freely, but never rename or remove one without a new `schema` number and the matching change in the app.
 
@@ -42,7 +44,7 @@ The app tolerates missing keys. Add a key freely, but never rename or remove one
 ## Working conventions
 
 - Use the Python standard library only, Python 3.10+. A new dependency needs an issue and the owner's decision first.
-- A repo that releases each module on its own tag (`Core-v1`, `Wheel-v2`, ...) is listed as its core release (`forever.core_release`); the app follows the same rule in `Sources.GitHub`.
+- A repo that releases each module on its own tag (`Core-v1`, `Wheel-v2`, ...) gets one entry per release group (`forever.module_groups`): the core (plain `v1.2`, `Core-v…` or `<Repo>-v…`) as an ordinary entry, and each module as an entry with `module` set, the newest published release of that group. Tag prefixes in `forever.NOT_MODULES` (release, build, beta, ...) are not modules. The app follows the same rules in `Modules.java`; a change to them changes both, with a test on each side.
 - The Forever build is picked with the same rules as the app. A change to `indexer/forever.py` needs the same change in the app's `Sources.GitHub` or `Toc`, with a test on both sides.
 - The index is a hint for search and update checks. The app always resolves the download from GitHub itself before installing.
 - Treat every README, TOC and release note as untrusted text: parse it, never run it, cap its length.

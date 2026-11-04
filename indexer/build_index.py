@@ -302,29 +302,40 @@ def forever_build(gh, rel, c, node, cache):
             "url": asset.get("downloadUrl")}
 
 
+def entry_key(e):
+    """repo, or repo#module for one module of a repo that releases modules separately."""
+    return e["repo"].lower() + ("#" + e["module"].lower() if e.get("module") else "")
+
+
 def check(gh, c, node, cache, gamepad=None):
-    """Return an index entry for a candidate, or None when it has no Forever build.
+    """Return the index entries of a candidate: [] when it has no Forever build, one entry for an
+    ordinary repo, one per module (core first) for a repo that releases modules separately.
 
     gamepad is the hand-made list from gamepad.txt: {repo_lower: True (tag) or False (never tag)}.
     """
     if node.get("isArchived") or (node.get("isFork") and "seed" not in c.reasons):
-        return None
+        return []
     rel = node.get("latestRelease")
     if not rel:
-        return None
+        return []
     history = (node.get("releases") or {}).get("nodes") or []
-    module = forever.module_of(rel.get("tagName"))
-    if module and not forever.is_core_module(module, node["name"]):
-        core = forever.core_release(history, node["name"])
-        if core is None:
-            more = module_releases(gh, node["nameWithOwner"])
-            core = forever.core_release(more, node["name"])
-            history = more or history
-        if core is not None:
-            rel = core
-            history = [r for r in history if forever.is_core_module(forever.module_of(r.get("tagName")), node["name"])]
-        elif forever.is_module_repo(history):
-            return None   # modules only, no core to install
+    if forever.module_groups(history + [rel], node["name"]) is None:
+        e = describe(gh, c, node, cache, gamepad, rel, history, None)
+        return [e] if e else []
+    history = module_releases(gh, node["nameWithOwner"]) or history
+    groups = forever.module_groups(history, node["name"]) or {}
+    out = []
+    for g in sorted(groups, key=lambda k: (k != "", k)):
+        name, r = groups[g]
+        own = [h for h in history if forever.release_group(h.get("tagName"), node["name"]).lower() == g]
+        e = describe(gh, c, node, cache, gamepad, r, own, name or None)
+        if e:
+            out.append(e)
+    return out
+
+
+def describe(gh, c, node, cache, gamepad, rel, history, module):
+    """One index entry for release rel (and its own history), or None without a Forever build."""
     entry = forever_build(gh, rel, c, node, cache)
     if entry is None:
         return None
@@ -341,6 +352,8 @@ def check(gh, c, node, cache, gamepad=None):
         "prerelease": bool(rel.get("isPrerelease")),
         "found_by": sorted(c.reasons, key=lambda r: PRIORITY.get(r, 9)),
     })
+    if module:
+        entry["module"] = module
     notes = details.plain_text(rel.get("description") or "", limit=4000)
     if notes:
         entry["changelog"] = notes
@@ -361,8 +374,12 @@ def check(gh, c, node, cache, gamepad=None):
     if releases:
         entry["releases"] = releases
 
-    fields = toc_meta(gh, node, c, entry)
-    readme = readme_meta(gh, node, entry)
+    if module:   # the core's TOC and README describe the core; the zip's TOC names the module later
+        entry["name"] = "%s: %s" % (node["name"], module)
+        fields, readme = {}, ""
+    else:
+        fields = toc_meta(gh, node, c, entry)
+        readme = readme_meta(gh, node, entry)
     cat = details.category(fields.get("x-category", ""), entry["topics"], entry["name"] + " " + entry["summary"])
     if cat:
         entry["category"] = cat
@@ -450,9 +467,10 @@ def zip_meta(entry, cache, out_dir):
     if not url:
         return
     meta = cache.get(url)
-    if meta is None or (meta.get("icon") and not os.path.exists(os.path.join(out_dir, meta["icon"]))):
+    if meta is None or "tocs" not in meta or (meta.get("icon") and not os.path.exists(os.path.join(out_dir, meta["icon"]))):
         try:
-            meta = icons.from_zip(url, entry["repo"], entry.get("folders") or [], out_dir, log=log)
+            name = entry["repo"] + ("#" + entry["module"] if entry.get("module") else "")
+            meta = icons.from_zip(url, name, entry.get("folders") or [], out_dir, log=log)
         except Exception as ex:   # an odd zip must not stop the run; try again tomorrow
             log("zip %s: %s" % (entry["repo"], ex))
             return
@@ -461,6 +479,33 @@ def zip_meta(entry, cache, out_dir):
         entry["folders"] = meta["folders"]
     if meta.get("icon"):
         entry["icon"] = meta["icon"]
+    if entry.get("module") and meta.get("title"):
+        entry["name"] = meta["title"]
+    entry["_deps"] = meta.get("deps") or []
+    entry["_tocs"] = meta.get("tocs")
+
+
+def link_requires(addons):
+    """entry["requires"]: the keys of other listed entries that ship a folder the entry's TOCs require.
+
+    A folder shipped by more than one repo stays unresolved, except when one of them is the entry's own repo.
+    """
+    owners = {}
+    for e in addons:
+        for f in e.get("folders") or []:
+            owners.setdefault(f.lower(), []).append(e)
+    for e in addons:
+        req = []
+        for d in e.pop("_deps", []):
+            cands = [o for o in owners.get(d.lower(), []) if o is not e]
+            same = [o for o in cands if o["repo"].lower() == e["repo"].lower()]
+            pick = same[0] if same else cands[0] if len(cands) == 1 else None
+            if pick is not None and entry_key(pick) not in req:
+                req.append(entry_key(pick))
+        if req:
+            e["requires"] = req
+        else:
+            e.pop("requires", None)
 
 
 def main(argv=None):
@@ -506,6 +551,10 @@ def main(argv=None):
     found = discover(gh, seeds, state.get("candidates"))
     state["candidates"] = remember(found)
     listed = {a["repo"].lower(): a for a in old.get("addons") or [] if a.get("repo")}
+    listed_all = {}
+    for a in old.get("addons") or []:
+        if a.get("repo"):
+            listed_all.setdefault(a["repo"].lower(), []).append(a)
     ordered = select(found, listed, args.max_checks)
     failed = set()
     nodes = fetch_repos(gh, ordered, failed=failed)
@@ -515,27 +564,35 @@ def main(argv=None):
     for c in ordered:
         key = c.repo.lower()
         node = nodes.get(key)
-        e = None
+        got = []
         if node:
             try:
-                e = check(gh, c, node, cache, gamepad)
+                got = check(gh, c, node, cache, gamepad)
             except Exception as ex:  # one bad repo must not stop the run
                 errors += 1
                 log("error %s: %s" % (c.repo, ex))
-                e = listed.get(key)
-                kept += e is not None
-        elif key in failed and key in listed:
-            e = listed[key]   # not answered this time: keep yesterday's entry
-            kept += 1
-        if e and e["repo"].lower() not in seen:   # renamed repos can show up twice
-            seen.add(e["repo"].lower())
-            addons.append(e)
+                got = listed_all.get(key, [])
+                kept += len(got)
+        elif key in failed and key in listed_all:
+            got = listed_all[key]   # not answered this time: keep yesterday's entries
+            kept += len(got)
+        for e in got:
+            if entry_key(e) not in seen:   # renamed repos can show up twice
+                seen.add(entry_key(e))
+                addons.append(e)
 
     zips = state.setdefault("zips", {})
     for i, e in enumerate(addons):
         zip_meta(e, zips, args.out)
         if i % 100 == 0:
             log("zips read: %d/%d" % (i, len(addons)))
+    no_addon = [e for e in addons if e.get("_tocs") == 0]
+    for e in no_addon:
+        log("left out %s: its zip %s has no addon (.toc) to install" % (entry_key(e), e["file"]))
+    addons = [e for e in addons if e.get("_tocs") != 0]
+    for e in addons:
+        e.pop("_tocs", None)
+    link_requires(addons)
     zips_live = {e["url"] for e in addons}
     state["zips"] = {u: v for u, v in zips.items() if u in zips_live}
     used = {e["icon"] for e in addons if e.get("icon")}

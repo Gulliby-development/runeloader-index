@@ -11,6 +11,7 @@ site/index.json and keep site/state.json (release.json picks by URL) for the nex
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -216,7 +217,7 @@ def remember(found):
             for k, c in found.items() if c.reasons - {"seed"}}
 
 
-PRIORITY = {"seed": 0, "toc": 1, "topic": 2, "packager": 3}
+PRIORITY = {"seed": 0, "toc": 1, "topic": 2, "dependency": 2, "packager": 3}
 
 RELEASE_FIELDS = "tagName publishedAt isPrerelease description releaseAssets(first: 40) { nodes { name size downloadCount downloadUrl } }"
 
@@ -504,6 +505,26 @@ def write_review(out_dir, addons, zips, report_path, ignore_path, zip_errors=(),
             os.remove(report_path)
 
 
+def find_dependencies(gh, deps, found, minutes=5):
+    """Repos named like a required addon that the index lacks; checked from the next run on.
+
+    Only a repo whose name is the folder name (ignoring case, "-" and "_") counts.
+    """
+    norm = lambda n: re.sub(r"[-_ .]", "", n.lower())
+    gh.search_deadline = time.time() + minutes * 60
+    added = 0
+    for d in deps[:60]:
+        if not re.fullmatch(r"[A-Za-z0-9_.!-]{3,}", d):
+            continue
+        for it in gh.search("repositories", "%s in:name" % d.lstrip("!"), max_pages=1):
+            if norm(it.get("name", "")) == norm(d.lstrip("!")) and not it.get("fork") and not it.get("archived"):
+                key = it["full_name"].lower()
+                c = found.get(key) or found.setdefault(key, Candidate(it["full_name"]))
+                added += "dependency" not in c.reasons
+                c.reasons.add("dependency")
+    log("dependencies: %d missing, %d repos added as candidates" % (len(deps), added))
+
+
 def link_requires(addons):
     """entry["requires"]: the keys of other listed entries that ship a folder the entry's TOCs require.
 
@@ -630,6 +651,15 @@ def main(argv=None):
     addons = [e for e in addons if e.get("_tocs") != 0]
     for e in addons:
         e.pop("_tocs", None)
+        if not e.get("folders"):   # addon folders deeper than the zip's top level
+            e["folders"] = ((zips.get(e["url"]) or {}).get("checks") or {}).get("roots") or []
+    left = review.doubtful(addons, zips)
+    for e in left:
+        log("left out %s: %s" % (entry_key(e), e["_left_detail"]))
+    addons = [e for e in addons if not any(e is x for x in left)]
+    no_addon += left
+    find_dependencies(gh, review.unresolved_deps(addons, zips), found)
+    state["candidates"] = remember(found)
     link_requires(addons)
     zips_live = {e["url"] for e in addons}
     state["zips"] = {u: v for u, v in zips.items() if u in zips_live}

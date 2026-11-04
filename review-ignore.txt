@@ -1,2 +1,59 @@
 # Findings of the nightly review that were looked at and are fine.
 # One per line: "owner/repo code" (codes are listed in indexer/review.py) or "owner/repo *" for all.
+
+# Same folder in two repos: a bundle, a fork or a separate copy of another addon. The app installs
+# either one; the later install replaces the folder.
+Questie/Questie shared_folder               # tysongoulding/Questie-Forever is an older Forever port of Questie
+tysongoulding/Questie-Forever shared_folder
+tullamods/Dominos shared_folder             # Dominos ships Masque_Dominos itself
+SFX-WoW/Masque_Dominos shared_folder
+mooreatv/AuctionDB shared_folder
+arithmandar/Atlas shared_folder
+nanderson11/Atlas shared_folder
+salty-max/yonder shared_folder              # Yonder bundles FieldJournal
+PlemonsBrett/FieldJournal shared_folder
+MikkelHauge/Tally shared_folder
+Macmada/forever-addons shared_folder        # a bundle of other Forever addons
+avp9320/ForeverLoot shared_folder
+eelliott4517/forever-loot shared_folder
+huebleruwm/OneAddon shared_folder
+drsnoelk-a11y/forever-suite-releases shared_folder
+avp9320/ForeverQuest shared_folder
+cjber/forever-core shared_folder
+
+# Required addons with no Forever build on GitHub (embedded libraries or addons from other sites).
+EY3G0R3/TOGBankClassic missing_dependency
+Pimptasty/TOGProfessionMaster missing_dependency
+vandemiaire/SharedMedia_FrenchSpells missing_dependency
+Canettieri/attributesmulti missing_dependency      # Titan Panel
+Canettieri/currenciesmulti missing_dependency
+Canettieri/professionsmulti missing_dependency
+Canettieri/spacer missing_dependency
+paulbuechner/titan-reputation missing_dependency
+Alluneve/Alluneve-Debug missing_dependency         # BugGrabber
+psykzz/wow-guildpricecheck missing_dependency      # Auctionator
+soosticus/shuffle-detector-addon missing_dependency
+kerimanka-ui/KerimAnkaUI missing_dependency        # Details
+fubaWoW/WIM_ElvUI_Skin missing_dependency
+neilsun1225/Scrap_BagBridge missing_dependency
+ReSenpai/craft-compass missing_dependency          # AtlasLootClassic has no Forever flavor
+Skamer/Syling-Tracker missing_dependency           # Scorpio has no Forever flavor
+peavers-warcraft/PeaversDynamicStats missing_dependency
+GoldpawsStuff/Bagnon_BoE missing_dependency        # BagBrother comes with Bagnon, which has no Forever build
+GoldpawsStuff/Bagnon_Garbage missing_dependency
+GoldpawsStuff/Bagnon_ItemInfo missing_dependency
+GoldpawsStuff/Bagnon_ItemLevel missing_dependency
+
+# The TOC lists files a desktop helper writes later, or the author forgot one.
+ForeverWowCraft/ForeverWowCraft-Helper missing_files
+realworldbuilder/rambleon missing_files
+
+# The release.json says forever, but the TOC carries a retail Interface; the game loads it as out of date.
+rgd87/Aptechka no_forever_toc
+rgd87/NugCast no_forever_toc
+rgd87/NugComboBar no_forever_toc
+SaffronG/ForeverChronicler no_forever_toc
+
+# Cosmetic or too large to read.
+Ninjaskurk/forever-mouse-tooltip placeholder      # @project-version@ in the TOC Version only
+Ironship/WordHunterWoW-Voice-DE zip_error         # a 1 GB voice pack with a central directory over 8 MB

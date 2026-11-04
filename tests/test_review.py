@@ -65,7 +65,7 @@ class Build(unittest.TestCase):
         zips = {"u1": {"checks": {"problems": [], "deps": ["Core"]}}, "u2": {"checks": {"problems": [], "deps": ["C"]}}}
         data, new = review.build([a, b, c], zips, today="2026-11-04")
         p = {r: [x[0] for x in v["problems"]] for r, v in data["addons"].items()}
-        self.assertEqual(p, {"o/A": ["missing_dependency", "shared_folder"], "o/B": ["shared_folder", "guessed"]})
+        self.assertEqual(p, {"o/A": ["missing_dependency", "shared_folder"], "o/B": ["shared_folder"]})
         self.assertEqual(len(new), 2)
 
         # next day, same releases: nothing new; a new release brings its findings back
@@ -78,7 +78,7 @@ class Build(unittest.TestCase):
 
     def test_ignore(self):
         b = self.addon("o/B", "u2", ["B"], verified=False)
-        data, new = review.build([b], {}, zip_errors=["o/B"], ignore={"o/b": {"guessed"}})
+        data, new = review.build([b], {}, zip_errors=["o/B"], ignore={"o/b": {"shared_folder"}})
         self.assertEqual(data["addons"]["o/B"]["problems"], [["zip_error", ""]])
         data, new = review.build([b], {}, ignore={"o/b": {"*"}})
         self.assertEqual((data["addons"], new), ({}, []))
@@ -93,6 +93,18 @@ class Build(unittest.TestCase):
         self.assertEqual(data["addons"]["o/Pack#Wheel"]["problems"], [["shared_folder", "x/Fork"]])
         self.assertEqual(data["addons"]["o/Docs"]["problems"], [["no_addon", "docs.zip"]])
         self.assertIn("[o/Pack#Wheel](https://github.com/o/Pack)", review.report(new, 3))
+
+    def test_doubtful_guessed_zips_are_left_out(self):
+        ok = self.addon("o/Good", "u1", ["Good"], verified=False)
+        retail = self.addon("o/Retail", "u2", ["Retail"], verified=False)
+        db = self.addon("o/AuctionDB", "u3", ["AuctionDB"])
+        repack = self.addon("x/Repack", "u4", ["AuctionDB"], verified=False)
+        zips = {"u2": {"checks": {"problems": [["no_forever_toc", "Retail (Interface 120100)"]], "deps": ["Lib", "Good"]}}}
+        left = review.doubtful([ok, retail, db, repack], zips)
+        self.assertEqual([(a["repo"], a["_left"]) for a in left], [("o/Retail", "not_forever"), ("x/Repack", "repack")])
+        data, _ = review.build([ok, db], zips, left_out=left)
+        self.assertEqual(data["addons"]["x/Repack"]["problems"][0][0], "repack")
+        self.assertEqual(review.unresolved_deps([ok, retail], zips), ["Lib"])
 
     def test_report_is_cut(self):
         new = [("o/R%d" % i, "1", [["placeholder", "@x@ " * 50]]) for i in range(500)]

@@ -22,7 +22,8 @@ CHECKS = {
     "missing_files": "the TOC lists files that are not in the zip",
     "missing_dependency": "a required addon is neither in the zip nor in the index",
     "shared_folder": "another repo in the index installs the same folder, so one overwrites the other",
-    "guessed": "no release.json; the Forever zip was guessed from asset names",
+    "not_forever": "left out: a zip guessed from asset names whose TOCs are not for Forever (likely a retail or classic build)",
+    "repack": "left out: a zip guessed from asset names that ships the folder of another repo's verified Forever build",
     "zip_error": "the release zip could not be read",
 }
 
@@ -141,6 +142,46 @@ def zip_checks(entries, read):
     return {"roots": sorted(roots.values(), key=str.lower), "problems": problems, "deps": deps}
 
 
+def doubtful(addons, zip_info):
+    """Entries to leave out: guessed zips (no release.json) that the zip itself does not confirm.
+
+    Sets "_left" (a CHECKS code) and "_left_detail" on each returned entry.
+    """
+    verified = {}
+    for a in addons:
+        if a.get("verified"):
+            for f in a.get("folders") or []:
+                verified.setdefault(f.lower(), a["repo"])
+    out = []
+    for a in addons:
+        if a.get("verified"):
+            continue
+        checks = (zip_info.get(a.get("url")) or {}).get("checks") or {}
+        codes = dict(checks.get("problems") or [])
+        other = sorted({verified[f.lower()] for f in a.get("folders") or []
+                        if f.lower() in verified and verified[f.lower()].lower() != a["repo"].lower()})
+        if "no_forever_toc" in codes:
+            a["_left"], a["_left_detail"] = "not_forever", "%s: %s" % (a.get("file", ""), codes["no_forever_toc"])
+        elif other:
+            a["_left"], a["_left_detail"] = "repack", "%s ships the folders of %s" % (a.get("file", ""), ", ".join(other))
+        else:
+            continue
+        out.append(a)
+    return out
+
+
+def unresolved_deps(addons, zip_info):
+    """Required folders that no listed entry ships, for the dependency search."""
+    have = {f.lower() for a in addons for f in a.get("folders") or []}
+    out = []
+    for a in addons:
+        checks = (zip_info.get(a.get("url")) or {}).get("checks") or {}
+        for d in checks.get("deps") or []:
+            if d.lower() not in have and d not in out:
+                out.append(d)
+    return out
+
+
 def load_ignore(path):
     """review-ignore.txt: {repo_lower: {codes}}; "*" silences every code."""
     out = {}
@@ -192,10 +233,8 @@ def build(addons, zip_info, zip_errors=(), ignore=None, old=None, today="", left
         shared = sorted({r for f in a.get("folders") or [] for r in owners.get(f.lower(), []) if r.lower() != repo.lower()})
         if shared:
             problems.append(["shared_folder", ", ".join(shared[:5])])
-        if not a.get("verified"):
-            problems.append(["guessed", a.get("file", "")])
-        if a in left_out:
-            problems = [["no_addon", a.get("file", "")]]
+        if any(a is x for x in left_out):
+            problems = [[a.get("_left", "no_addon"), a.get("_left_detail") or a.get("file", "")]]
         if key.lower() in zip_errors:
             problems.append(["zip_error", ""])
         skip = ignore.get(repo.lower(), set())

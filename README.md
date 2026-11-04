@@ -26,7 +26,7 @@ python -m indexer.build_index --out site --tags-only
 
 ## Review of risky addons
 
-Each run also checks the release zip of every listed addon for things that can break its install or load: no addon folder the app can find, no Forever TOC or `## Interface: 160xx`, unreplaced packager tokens such as `@project-version@`, TOC files missing from the zip, a required addon that is neither in the zip nor in the index, two repos that install the same folder, a guessed build. The findings are published as `review.json` next to the index. New ones (a new addon, a new release or a new kind of problem) open a GitHub issue labelled `index-review`. A finding that is fine goes into [`review-ignore.txt`](review-ignore.txt) as `owner/repo code`.
+Each run also checks the release zip of every listed addon for things that can break its install or load: no addon folder the app can find, no Forever TOC or `## Interface: 160xx`, unreplaced packager tokens such as `@project-version@`, TOC files missing from the zip, a required addon that is neither in the zip nor in the index, two repos that install the same folder. A zip guessed from asset names (no `release.json`) is left out when its TOCs are not for Forever or when it ships the folder of another repo's verified build. A required addon the index lacks is searched for by name and checked from the next run on. The findings are published as `review.json` next to the index. New ones (a new addon, a new release or a new kind of problem) open a GitHub issue labelled `index-review`. A finding that is fine goes into [`review-ignore.txt`](review-ignore.txt) as `owner/repo code`.
 
 To check the published index again without a token (for example after you edit `review-ignore.txt`):
 

@@ -26,4 +26,5 @@ Hizuro/Broker_Everything
 Funkydude/BugSack
 funkydude/BadBoy                  # required by BadBoy_Levels
 Nerzors/NerzorsBlacklistKeeper    # required by tRP3_NBK
-Gulliby-development/gulli-questCleaner   # our own addon (Gulli-QuestCleaner)
+Gulliby-development/gulli-toolkit        # our own addons: Gulli Toolkit core + modules (QuestCleaner, MobFinder, GroupBuffs)
+Gulliby-development/gulli-questCleaner   # moved into gulli-toolkit; kept so the old entry is marked discontinued

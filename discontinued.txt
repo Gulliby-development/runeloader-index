@@ -5,3 +5,4 @@
 # Say where the author said it, after a " #". Add yours with a pull request.
 
 moust4ki/DingGuideWoWForever fitzforge/polestar   # CurseForge page, 2026-11: "Ding has been discontinued, all features have been ported to the community addon Polestar"
+Gulliby-development/gulli-questCleaner gulliby-development/gulli-toolkit#questcleaner   # our own addon, 2026-11: moved into the Gulli Toolkit repository as a module

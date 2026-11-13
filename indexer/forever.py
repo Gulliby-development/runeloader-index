@@ -174,9 +174,28 @@ def release_group(tag, repo_name):
     return "" if m is None or is_core_module(m, repo_name) else m
 
 
+def tag_version(tag):
+    """Numbers of a release tag's version: "Wheel-v0.10.0" -> (0, 10, 0), "v1.2" -> (1, 2); () when unreadable.
+
+    Same rule as the app's Modules.versionOf and AppVersion.compare (missing parts count as 0).
+    """
+    t = tag or ""
+    m = module_of(t)
+    if m is not None:
+        t = t[len(m) + 1:]
+    v = re.match(r"[vV]?(\d+(?:\.\d+)*)", t.strip())
+    if not v:
+        return ()
+    parts = [int(x[:12]) for x in v.group(1).split(".")]
+    while parts and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
+
+
 def module_groups(releases, repo_name):
     """For a repo that releases modules on their own tags, {group_lower: (name, newest published release)}
-    with "" for the core; None for an ordinary repo. Releases come newest first.
+    with "" for the core; None for an ordinary repo. "Newest" is the highest version: GitHub does not list
+    releases in version order (Core-v1.9.1 can come before Core-v1.12.0); equal versions keep the earlier one.
 
     Same rule as the app's Modules.java.
     """
@@ -188,7 +207,9 @@ def module_groups(releases, repo_name):
         if r.get("isPrerelease"):
             continue
         g = release_group(r.get("tagName"), repo_name)
-        out.setdefault(g.lower(), (g, r))
+        have = out.get(g.lower())
+        if have is None or tag_version(r.get("tagName")) > tag_version(have[1].get("tagName")):
+            out[g.lower()] = (g, r)
     return out
 
 

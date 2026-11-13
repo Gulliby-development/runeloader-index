@@ -453,12 +453,25 @@ def link_successors(addons):
             e.pop("successor", None)
 
 
+MODULE_RELEASE_PAGES = 5
+
+
 def module_releases(gh, repo):
-    """Up to 100 releases, newest first, in the GraphQL shape; [] when GitHub does not answer."""
-    try:
-        data = gh.json("/repos/%s/releases?per_page=100" % repo)
-    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, RuntimeError):
-        return []
+    """Up to 500 releases in the GraphQL shape; [] when GitHub does not answer. A module repo has hundreds of
+    releases, so one page of 100 misses whole groups."""
+    data = []
+    for page in range(1, MODULE_RELEASE_PAGES + 1):
+        try:
+            got = gh.json("/repos/%s/releases?per_page=100&page=%d" % (repo, page))
+        except (urllib.error.HTTPError, urllib.error.URLError, ValueError, RuntimeError):
+            if page == 1:
+                return []
+            break
+        if not isinstance(got, list):
+            break
+        data.extend(got)
+        if len(got) < 100:
+            break
     return [{"tagName": r.get("tag_name", ""), "publishedAt": r.get("published_at"), "isPrerelease": bool(r.get("prerelease")),
              "description": r.get("body") or "",
              "releaseAssets": {"nodes": [{"name": a.get("name"), "size": a.get("size"), "downloadCount": a.get("download_count"),

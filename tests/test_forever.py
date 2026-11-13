@@ -127,6 +127,15 @@ class Modules(unittest.TestCase):
         self.assertIsNone(forever.core_release([self.rel("Questie-v12"), self.rel("Questie-v11")], "Questie"))
         self.assertIsNone(forever.core_release([self.rel("v2"), self.rel("v1")], "X"))
 
+    def test_module_groups_pick_highest_version(self):
+        rels = [self.rel("Core-v1.9.1"), self.rel("XP-v1.8.0"), self.rel("Core-v1.12.0"), self.rel("Core-v1.11.0"),
+                self.rel("Attune-v1.6.2"), self.rel("Attune-v1.6.10")]
+        g = forever.module_groups(rels, "gulli-toolkit")
+        self.assertEqual(g[""][1]["tagName"], "Core-v1.12.0")
+        self.assertEqual(g["attune"][1]["tagName"], "Attune-v1.6.10")
+        self.assertEqual(forever.tag_version("Wheel-v0.10.0"), (0, 10))
+        self.assertEqual(forever.tag_version("v1.2"), (1, 2))
+
 
 if __name__ == "__main__":
     unittest.main()

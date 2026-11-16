@@ -247,9 +247,12 @@ def build(addons, zip_info, zip_errors=(), ignore=None, old=None, today="", left
         before = old_addons.get(key) or {}
         same_release = before.get("url") == a.get("url")
         seen = {p[0] for p in before.get("problems") or []} if same_release else set()
+        # an overlap is about the pair of repos, not the release: report it again only for a new repo
+        was_shared = {r for p in before.get("problems") or [] if p[0] == "shared_folder" for r in p[1].split(", ")}
         out[key] = {"version": a.get("version", ""), "url": a.get("url", ""), "problems": problems,
                      "since": before.get("since", today) if same_release else today}
-        fresh = [p for p in problems if p[0] not in seen]
+        fresh = [p for p in problems if p[0] not in seen
+                 and not (p[0] == "shared_folder" and set(p[1].split(", ")) <= was_shared)]
         if fresh:
             new.append((key, a.get("version", ""), fresh))
     return {"generated": today, "checks": CHECKS, "addons": out}, new

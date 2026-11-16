@@ -72,9 +72,22 @@ class Build(unittest.TestCase):
         data2, new2 = review.build([a, b, c], zips, old=data, today="2026-11-05")
         self.assertEqual(new2, [])
         self.assertEqual(data2["addons"]["o/A"]["since"], "2026-11-04")
-        b2 = dict(b, url="u9")
+        b2 = dict(b, url="u9", folders=["Shared", "B", "C"])
         _, new3 = review.build([a, b2, c], zips, old=data, today="2026-11-05")
-        self.assertEqual([n[0] for n in new3], ["o/B"])
+        self.assertEqual([n[0] for n in new3], ["o/B", "o/C"])   # B now overlaps C too; A's overlap is old
+        self.assertEqual(new3[0][2], [["shared_folder", "o/A, o/C"]])
+
+    def test_shared_folder_is_not_new_again_for_a_new_release(self):
+        a = self.addon("o/A", "u1", ["Shared"])
+        b = self.addon("o/B", "u2", ["Shared"])
+        zips = {"u1": {"checks": {"problems": [], "deps": []}}, "u2": {"checks": {"problems": [["missing_files", "x.lua"]]}}}
+        data, _ = review.build([a, b], zips, today="2026-11-04")
+        # a new release of B keeps the same overlap: only its other findings come back
+        b2 = dict(b, url="u9")
+        zips["u9"] = zips["u2"]
+        data2, new = review.build([a, b2], zips, old=data, today="2026-11-05")
+        self.assertEqual(new, [("o/B", "1", [["missing_files", "x.lua"]])])
+        self.assertEqual(data2["addons"]["o/B"]["problems"], [["missing_files", "x.lua"], ["shared_folder", "o/A"]])
 
     def test_ignore(self):
         b = self.addon("o/B", "u2", ["B"], verified=False)

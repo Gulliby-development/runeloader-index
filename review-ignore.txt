@@ -20,6 +20,59 @@ huebleruwm/OneAddon shared_folder
 drsnoelk-a11y/forever-suite-releases shared_folder
 avp9320/ForeverQuest shared_folder
 cjber/forever-core shared_folder
+cjber/adventure-guide-forever shared_folder  # every cjber addon ships the shared ForeverCore library folder
+cjber/commissions-forever shared_folder
+cjber/field-guide-forever shared_folder
+cjber/legacy-forever shared_folder
+cjber/macro-assist-forever shared_folder
+cjber/skillup-forever shared_folder
+cjber/tweaks-forever shared_folder
+MainX342/wow-addon-updater shared_folder     # bundles of other addons (BigWigs, EllesmereUI, Questie, DBM, ...)
+Chen3301/wow-forever-addons shared_folder
+dellmas/DWD-WoW-Forever-Addons shared_folder
+BurN-30/wow-forever-guide shared_folder
+AlxsAndrs/routes-forever shared_folder       # Forever ports or forks of another listed addon
+Nevcairiel/Routes shared_folder
+ForWakanda/foreverpath shared_folder
+Siggysagg/foreverpath shared_folder
+NickWahWah/PitBull4-Forever-16001 shared_folder
+Rumorix/PitBull4-Forever shared_folder
+RDirven/ForeverRings shared_folder
+alde/ForeverRings shared_folder
+frozn/TipTac shared_folder
+srhinos/TipTac-Forever shared_folder
+juliarvalenti/wow-forever-buddy shared_folder
+norushflow/ForeverBuddy shared_folder
+rossmlucarelli/forever-companion shared_folder
+nassimbouzid95-design/ForeverCompanion shared_folder
+prezus/ForeverGuide shared_folder
+Pietjan/wow-forever-addons shared_folder
+gLockwoRkGitHub/forever-gear-planner shared_folder
+Bovahkiin/ForeverSuite shared_folder
+eserilev/healpad shared_folder               # DeckKit ships HealPad as one of its modules
+fillmoreb/DeckKit shared_folder
+hccbuddy-svg/forever-macros shared_folder    # also inside the Macmada bundle
+Questie/QuestieTrace shared_folder           # same author as Questie
+Gulliby-development/gulli-questCleaner shared_folder   # moved into gulli-toolkit, listed as discontinued with it as successor
+
+# Left out of the index already; nothing more to do.
+AaronV-T/AutoBiographer not_forever
+Somora/EasyAutoLootEnabler not_forever
+caaatto/CattosShuffle not_forever
+jeany55/MyAccountant not_forever
+santipaprika/SessionTime not_forever
+brunohanss/Nauctions repack
+snrn-Pontus/Tally repack
+Timcross1/warcraft-market-forever no_addon   # a price data zip next to the addon
+fitzforge/polestar no_addon                  # the data module's zip is a database, not an addon
+calmcacil/wow-forever-icons-upscaled no_addon  # icon packs for the game folder
+hastecraft/forever-icons no_addon
+
+# The author's release.json names this zip as the Forever build, but its TOC is for another client.
+Questie/QuestieTrace no_forever_toc
+CruelDrool/GuildRosterExport no_forever_toc
+rgd87/ClassicSpellActivations no_forever_toc
+Wiubiki/rphelper-forever no_forever_toc
 
 # Required addons with no Forever build on GitHub (embedded libraries or addons from other sites).
 EY3G0R3/TOGBankClassic missing_dependency
@@ -43,10 +96,14 @@ GoldpawsStuff/Bagnon_BoE missing_dependency        # BagBrother comes with Bagno
 GoldpawsStuff/Bagnon_Garbage missing_dependency
 GoldpawsStuff/Bagnon_ItemInfo missing_dependency
 GoldpawsStuff/Bagnon_ItemLevel missing_dependency
+Witnesscm/NDui_Plus missing_dependency       # NDui has no Forever build
+masterred92/FloorIsLava missing_dependency   # Details
 
 # The TOC lists files a desktop helper writes later, or the author forgot one.
 ForeverWowCraft/ForeverWowCraft-Helper missing_files
 realworldbuilder/rambleon missing_files
+miyankooo/SimpleMarketValue missing_files    # AppData.lua is written by the TSM desktop helper
+Pietjan/wow-forever-addons missing_files     # the author's ForeverGuide zip lacks Guides/guides.xml; the game skips it
 
 # The release.json says forever, but the TOC carries a retail Interface; the game loads it as out of date.
 rgd87/Aptechka no_forever_toc

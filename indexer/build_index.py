@@ -331,14 +331,16 @@ def check(gh, c, node, cache, gamepad=None, ended=None):
     for g in sorted(groups, key=lambda k: (k != "", k)):
         name, r = groups[g]
         own = [h for h in history if forever.release_group(h.get("tagName"), node["name"]).lower() == g]
-        e = describe(gh, c, node, cache, gamepad, r, own, name or None, ended)
+        e = describe(gh, c, node, cache, gamepad, r, own, name or None, ended, package=True)
         if e:
             out.append(e)
     return out
 
 
-def describe(gh, c, node, cache, gamepad, rel, history, module, ended=None):
-    """One index entry for release rel (and its own history), or None without a Forever build."""
+def describe(gh, c, node, cache, gamepad, rel, history, module, ended=None, package=False):
+    """One index entry for release rel (and its own history), or None without a Forever build.
+
+    package: the core of a repo that releases modules separately; its TOC is the one of the core's folder."""
     entry = forever_build(gh, rel, c, node, cache)
     if entry is None:
         return None
@@ -381,7 +383,7 @@ def describe(gh, c, node, cache, gamepad, rel, history, module, ended=None):
         entry["name"] = "%s: %s" % (node["name"], module)
         fields, readme = {}, ""
     else:
-        fields = toc_meta(gh, node, c, entry)
+        fields = toc_meta(gh, node, c, entry, core_folder(entry.get("file")) if package else None)
         readme = readme_meta(gh, node, entry)
     cat = details.category(fields.get("x-category", ""), entry["topics"], entry["name"] + " " + entry["summary"])
     if cat:
@@ -496,9 +498,21 @@ def readme_meta(gh, node, entry):
     return ""
 
 
-def toc_meta(gh, node, c, entry):
-    """Title, notes, author, folder and other-site ids from the Forever TOC on the default branch."""
+def core_folder(file):
+    """The addon folder a release zip is named after: "Gulli-Toolkit-1.20.0-forever.zip" -> "Gulli-Toolkit"."""
+    m = re.match(r"(.+?)[-_]v?\d", file or "")
+    return m.group(1) if m else None
+
+
+def toc_meta(gh, node, c, entry, folder=None):
+    """Title, notes, author, folder and other-site ids from the Forever TOC on the default branch.
+
+    folder: the core folder of a module repo, whose TOCs all sit at the same depth: the shallowest
+    TOC would name a module, so the core's own folder wins (and is asked for when the search missed it)."""
     paths = list(c.toc_paths)
+    if folder:
+        own = [p for p in paths if p.split("/")[0].lower() == folder.lower()]
+        paths = own or ["%s/%s.toc" % (folder, folder)]
     if not paths:
         return {}
     path = sorted(paths, key=lambda p: (p.count("/"), len(p)))[0]

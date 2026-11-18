@@ -95,6 +95,23 @@ class Check(unittest.TestCase):
         self.assertEqual([b.entry_key(e) for e in got], ["o/pack", "o/pack#camp", "o/pack#wheel"])
         self.assertEqual(got[1]["name"], "Pack: Camp")
 
+    def test_module_repo_core_reads_its_own_toc(self):
+        # every folder's TOC sits at the same depth; the shortest path names a module, not the core
+        node = self.module_node(release("XP-v1.0.0", "Kit-XP-1.0.0-forever.zip"),
+                                release("Core-v1.2.0", "Kit-Core-1.2.0-forever.zip"))
+        node["name"] = "kit"
+        raw = "https://raw.githubusercontent.com/o/Pack/main/"
+        gh = FakeGitHub({raw + "Kit-XP/Kit-XP.toc": "## Title: Kit-XP\n## Notes: XP per hour\n",
+                         raw + "Kit-Core/Kit-Core.toc": "## Title: Kit-Core\n## Notes: The hub\n"})
+        c = b.Candidate("o/Pack")
+        c.reasons.add("toc")
+        c.toc_paths.append("Kit-XP/Kit-XP.toc")
+        core = b.check(gh, c, node, {})[0]
+        self.assertNotIn("module", core)
+        self.assertEqual((core["name"], core["summary"], core["folders"]), ("Kit-Core", "The hub", ["Kit-Core"]))
+        self.assertEqual(b.core_folder("Gulli-Toolkit-1.20.0-forever.zip"), "Gulli-Toolkit")
+        self.assertEqual(b.core_folder("Pack-v0.8.0.zip"), "Pack")
+
     def test_module_repo_without_core_lists_each_module(self):
         node = self.module_node(release("Camp-v0.1.0", "Pack_Camp-0.1.0.zip"), release("Wheel-v0.2.0", "Pack_Wheel-0.2.0.zip"))
         c = b.Candidate("o/Pack")

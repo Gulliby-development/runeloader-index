@@ -96,6 +96,25 @@ class Build(unittest.TestCase):
         data, new = review.build([b], {}, ignore={"o/b": {"*"}})
         self.assertEqual((data["addons"], new), ({}, []))
 
+    def test_an_accepted_overlap_covers_both_repos(self):
+        # a bundle that ships other people's addons is accepted once; the addon it ships
+        # must not be reported for the same pair
+        pack = self.addon("o/Pack", "u1", ["Alpha", "Beta"])
+        alpha = self.addon("o/Alpha", "u2", ["Alpha"])
+        data, new = review.build([pack, alpha], {}, ignore={"o/pack": {"shared_folder"}})
+        self.assertEqual((data["addons"], new), ({}, []))
+        # the other addon's own findings still come
+        data, _ = review.build([pack, dict(alpha, folders=["Alpha"])],
+                               {"u2": {"checks": {"problems": [["missing_files", "x.lua"]]}}},
+                               ignore={"o/pack": {"shared_folder"}})
+        self.assertEqual(data["addons"]["o/Alpha"]["problems"], [["missing_files", "x.lua"]])
+
+    def test_a_successor_keeps_the_folder_of_the_addon_it_replaced(self):
+        old = dict(self.addon("o/Old", "u1", ["Thing"]), discontinued="listed", successor="o/New#Thing")
+        new_one = self.addon("o/New", "u2", ["Thing"])
+        data, found = review.build([old, new_one], {})
+        self.assertEqual((data["addons"], found), ({}, []))
+
     def test_modules_and_left_out(self):
         core = self.addon("o/Pack", "u1", ["Pack"])
         wheel = dict(self.addon("o/Pack", "u2", ["Pack", "Pack_Wheel"]), module="Wheel")

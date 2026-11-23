@@ -222,6 +222,15 @@ def build(addons, zip_info, zip_errors=(), ignore=None, old=None, today="", left
             owners.setdefault(f.lower(), []).append(a["repo"])
     index_folders = set(owners)
     zip_errors = {z.lower() for z in zip_errors}
+    # an overlap is about the pair: one side's accepted shared_folder accepts the other side too,
+    # and an addon that took another one's place keeps its folder on purpose
+    accepted = {r for r, codes in ignore.items() if "*" in codes or "shared_folder" in codes}
+    replaces = set()
+    for a in addons:
+        s = (a.get("successor") or "").split("#")[0].lower()
+        if s:
+            replaces.add((a["repo"].lower(), s))
+            replaces.add((s, a["repo"].lower()))
 
     out, new = {}, []
     for a in list(addons) + list(left_out):
@@ -233,7 +242,9 @@ def build(addons, zip_info, zip_errors=(), ignore=None, old=None, today="", left
         if lost:
             problems.append(["missing_dependency", ", ".join(lost[:5])])
         # modules of one repo may ship the same folder on purpose; other repos overwrite each other
-        shared = sorted({r for f in a.get("folders") or [] for r in owners.get(f.lower(), []) if r.lower() != repo.lower()})
+        shared = sorted({r for f in a.get("folders") or [] for r in owners.get(f.lower(), [])
+                         if r.lower() != repo.lower() and r.lower() not in accepted
+                         and (repo.lower(), r.lower()) not in replaces})
         if shared:
             problems.append(["shared_folder", ", ".join(shared[:5])])
         if any(a is x for x in left_out):

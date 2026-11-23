@@ -120,3 +120,45 @@ llpowwowll/wowforeverkolossus shared_folder
 Nevcairiel/HandyNotes shared_folder
 cjber/shortest-path-forever shared_folder
 Questie/QuestieDB shared_folder              # Questie ships QuestieDB too
+MainX342/wow-addon-updater shared_folder   # a release mirror of many addons at once
+Chen3301/wow-forever-addons shared_folder
+dellmas/DWD-WoW-Forever-Addons shared_folder
+BurN-30/wow-forever-guide shared_folder
+gunba/wow-addon-releases shared_folder
+Tgaarden/Gaar.WowAddons shared_folder      # its modules are other authors' addons
+DubDeezo-hub/Questie-Forever shared_folder # forks of Questie keep its folders
+tysongoulding/Questie-Forever shared_folder
+vem882/pandaquest shared_folder            # one author, three repos of one addon set
+vem882/pqAuction shared_folder
+vem882/pqDB shared_folder
+
+# Two repos publish the same addon, or two addons took the same folder name. Nothing to fix
+# here: both are listed and the player installs one of them.
+Radiant28/ForeverUI shared_folder
+ShadowHexYT/ForeverMarket-releases shared_folder
+zyborc/ForeverRotation shared_folder
+yurristudio/ForeverXP shared_folder
+Pinta365/LFGForever shared_folder
+filinodz/ForeverTracker shared_folder
+szh101/Forever-companion- shared_folder
+SimplyAddons/BetterForever shared_folder
+
+# A companion zip (a voice pack, a media pack, maps) whose main addon has no Forever release,
+# or a required addon that is not on GitHub.
+AcidWeb/OPie_ElvUI missing_dependency        # OPie has no Forever build
+Bajtlamer/titan-gathered-forever-v3 missing_dependency   # Titan
+Yupmoh/Zuestie missing_dependency            # ZygorGuidesViewerForever
+flyhard/LoreForeverHush missing_dependency
+mliudev/LoreForever missing_dependency       # the listed zip is the voice pack
+tehw0lf/WoWQuote2 missing_dependency         # the listed zip is the media pack
+jeany55/forever-games missing_dependency
+
+# The author's own packaging; the game skips the file or the addon loads without it.
+LoyalFTW/CrossGambling missing_files
+grant9008/grantdenney.com missing_files
+Radiant28/ForeverUI no_forever_toc           # release.json says forever, the TOC is 30300
+Braden1996/wow-forever-myth no_addon         # a helper zip beside the addon zip
+TomasBouda/ForeverTV no_addon                # the browser extension zip
+Emzime/OneForAll repack                      # a repack of thoreex/OneForAll, left out anyway
+adbergen/honor-log not_forever               # the guessed zip is the retail build, left out
+vBaustad/Headstart zip_error                 # the release zip cannot be read
